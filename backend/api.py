@@ -411,3 +411,15 @@ def _count_assets(assets: list) -> dict:
         state = asset.get("state", "unknown")
         counts[state] = counts.get(state, 0) + 1
     return counts
+
+class AddTopicRequest(BaseModel):
+    name: str
+    niche: str
+    description: str = ""
+
+@app.post("/api/channels/{channel}/topics/add")
+async def add_topic(channel: str, req: AddTopicRequest):
+    store = _get_store(channel)
+    topic = store.add_topic(req.name, req.niche, req.description)
+    return JSONResponse(topic)
+    

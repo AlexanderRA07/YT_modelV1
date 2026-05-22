@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Pipeline</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <header class="topbar">
+    <div class="topbar-logo">PIPELINE<span>/v1</span></div>
+    <a href="/" class="btn btn-ghost" style="font-size:0.75rem;">← Home</a>
+    <span id="topbar-project-title" class="text-muted text-small" style="padding-left:0.5rem;"></span>
+    <div class="topbar-sep"></div>
+    <div class="topbar-status">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-label">connecting</span>
+    </div>
+  </header>
+
+  <main class="page-content">
+
+    <!-- Project picker (shown when loading from /dashboard directly) -->
+    <div id="project-picker" class="hidden">
+      <h1 class="page-title">Continue Project</h1>
+      <p class="page-subtitle">Select a project to resume</p>
+      <div class="project-grid" id="project-grid">
+        <div class="empty-state"><span class="empty-state-icon">○</span><div class="empty-state-text">Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- Main dashboard (shown when project is loaded) -->
+    <div id="dashboard-main" class="hidden">
+
+      <div class="flex-center gap-2" style="margin-bottom:1.5rem;flex-wrap:wrap;">
+        <h1 class="page-title" style="margin:0;" id="dash-title">—</h1>
+        <span id="dash-format-badge" class="state-badge state-waiting"></span>
+        <div class="topbar-sep"></div>
+        <button class="btn btn-secondary" onclick="showAddAsset()">+ Add Asset</button>
+        <button class="btn btn-primary hidden" id="btn-compile" onclick="goCompile()">
+          ▶ Compile Video
+        </button>
+      </div>
+
+      <!-- Stats bar -->
+      <div class="stats-bar">
+        <div class="stat-cell">
+          <div class="stat-num" id="stat-pending">0</div>
+          <div class="stat-label">Pending</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-num" style="color:var(--amber)" id="stat-review">0</div>
+          <div class="stat-label">Review</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-num" style="color:var(--accent)" id="stat-approved">0</div>
+          <div class="stat-label">Approved</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-num" style="color:var(--red)" id="stat-rejected">0</div>
+          <div class="stat-label">Rejected</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-num" style="color:var(--red)" id="stat-error">0</div>
+          <div class="stat-label">Error</div>
+        </div>
+      </div>
+
+      <!-- Progress -->
+      <div class="progress-wrap">
+        <div class="progress-label">
+          <span>Approved assets</span>
+          <span id="progress-label-right">0 / 0 minimum</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div class="dash-layout">
+
+        <!-- Asset list -->
+        <div>
+          <div class="section-label">All Assets</div>
+          <div class="asset-list mt-1" id="asset-list">
+            <div class="empty-state">
+              <span class="empty-state-icon">○</span>
+              <div class="empty-state-text">Waiting for assets...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review panel -->
+        <div>
+          <div class="review-panel">
+            <div class="review-panel-header">
+              <div class="review-panel-title">Review Queue</div>
+              <span class="review-queue-count" id="queue-count">0</span>
+            </div>
+            <div class="review-panel-body" id="review-body">
+              <div class="empty-state" style="padding:2rem 0;">
+                <span class="empty-state-icon" style="font-size:1.5rem;">○</span>
+                <div class="empty-state-text">No assets pending review</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Add asset modal -->
+    <div id="add-asset-modal" class="hidden">
+      <div class="card mt-2">
+        <div class="card-title" style="margin-bottom:1rem;">Add Asset Manually</div>
+        <div class="form-group">
+          <label>Asset Type</label>
+          <select id="add-asset-type">
+            <option value="image">Image</option>
+            <option value="thumbnail">Thumbnail</option>
+            <option value="voice">Voiceover</option>
+            <option value="music">Background Music</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Prompt</label>
+          <textarea id="add-asset-prompt" placeholder="Describe what you want..."></textarea>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" onclick="submitAddAsset()">Dispatch</button>
+          <button class="btn btn-ghost" onclick="hideAddAsset()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div id="toast-container"></div>
+<script src="/static/app.js"></script>
+<script>
+  let projectState = null;
+  let reviewQueue = [];
+  let currentReviewIndex = 0;
+
+  const { channel, projectId } = CTX.get();
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    if (channel && projectId) {
+      await loadProject(channel, projectId);
+    } else {
+      await showProjectPicker();
+    }
+  });
+
+  // ── WebSocket updates ───────────────────────────────────────
+  onMessage(async (msg) => {
+    const type = msg.type;
+
+    if (type === 'asset_state_change' || type === 'asset_returned') {
+      await refreshState();
+    }
+    if (type === 'asset_error') {
+      toast(`Asset ${msg.payload.asset_id} error: ${msg.payload.module}`, 'error', 6000);
+      await refreshState();
+    }
+    if (type === 'project_error') {
+      toast(`Pipeline error: ${msg.payload.module}`, 'error', 8000);
+      await refreshState();
+    }
+    if (type === 'compile_ready') {
+      document.getElementById('btn-compile').classList.remove('hidden');
+      toast('Minimum assets met — ready to compile!', 'ok', 6000);
+    }
+    if (type === 'status_update') {
+      console.log('[Status]', msg.payload.text);
+    }
+    if (type === 'retry_notice') {
+      toast(`Retrying ${msg.payload.module} (attempt ${msg.payload.attempt})`, 'warn');
+    }
+  });
+
+  // ── Project loading ─────────────────────────────────────────
+  async function loadProject(ch, pid) {
+    try {
+      const state = await API.get(`/api/projects/${ch}/${pid}/state`);
+      projectState = state;
+      CTX.set(ch, pid);
+      renderDashboard(state);
+      document.getElementById('project-picker').classList.add('hidden');
+      document.getElementById('dashboard-main').classList.remove('hidden');
+    } catch(e) {
+      toast('Could not load project', 'error');
+      showProjectPicker();
+    }
+  }
+
+  async function refreshState() {
+    const { channel: ch, projectId: pid } = CTX.get();
+    if (!ch || !pid) return;
+    try {
+      const state = await API.get(`/api/projects/${ch}/${pid}/state`);
+      projectState = state;
+      renderDashboard(state);
+    } catch(e) {}
+  }
+
+  async function showProjectPicker() {
+    document.getElementById('project-picker').classList.remove('hidden');
+    document.getElementById('dashboard-main').classList.add('hidden');
+    try {
+      const projects = await API.get('/api/projects/in-production');
+      const grid = document.getElementById('project-grid');
+      if (!projects.length) {
+        grid.innerHTML = '<div class="empty-state"><span class="empty-state-icon">○</span><div class="empty-state-text">No projects in production.</div></div>';
+        return;
+      }
+      grid.innerHTML = projects.map(p => `
+        <div class="project-card">
+          <div class="project-card-thumb">No thumbnail yet</div>
+          <div class="project-card-body">
+            <div class="project-card-title">${p.title}</div>
+            <div class="project-card-meta">${p.niche} · ${p.format} · ${p.channel}</div>
+          </div>
+          <div class="project-card-actions">
+            <button class="btn btn-primary" onclick="loadProject('${p.channel}','${p.project_id}')">Continue</button>
+            <button class="btn btn-danger" onclick="deleteProject('${p.channel}','${p.project_id}')">Delete</button>
+          </div>
+        </div>
+      `).join('');
+    } catch(e) {
+      toast('Could not load projects', 'error');
+    }
+  }
+
+  // ── Render ─────────────────────────────────────────────────
+  function renderDashboard(state) {
+    document.getElementById('dash-title').textContent = state.title;
+    document.getElementById('topbar-project-title').textContent = state.title;
+    document.getElementById('dash-format-badge').textContent = state.format;
+
+    // Stats
+    const counts = {};
+    (state.assets || []).forEach(a => {
+      counts[a.state] = (counts[a.state] || 0) + 1;
+    });
+    ['pending','review','approved','rejected','error'].forEach(s => {
+      const el = document.getElementById(`stat-${s}`);
+      if (el) el.textContent = counts[s] || 0;
+    });
+
+    // Progress
+    const approvedImages = (state.assets || []).filter(a =>
+      (a.type === 'image' || a.type === 'thumbnail') &&
+      ['approved','animating','thumbnail','done'].includes(a.state)
+    ).length;
+
+    const formatMins = { '1min':2, '2min':3, '10min':10, '15min':15 };
+    const minimum = formatMins[state.format] || 0;
+    const pct = minimum ? Math.min(100, Math.round((approvedImages / minimum) * 100)) : 0;
+    document.getElementById('progress-fill').style.width = `${pct}%`;
+    document.getElementById('progress-label-right').textContent =
+      `${approvedImages} / ${minimum} minimum`;
+
+    if (state.compile_ready) {
+      document.getElementById('btn-compile').classList.remove('hidden');
+    }
+
+    // Asset list
+    renderAssetList(state.assets || []);
+
+    // Review queue
+    reviewQueue = (state.assets || []).filter(a => a.state === 'review');
+    document.getElementById('queue-count').textContent = reviewQueue.length;
+    if (reviewQueue.length > 0) {
+      renderReviewPanel(reviewQueue[0]);
+    } else {
+      document.getElementById('review-body').innerHTML =
+        '<div class="empty-state" style="padding:2rem 0;"><span class="empty-state-icon" style="font-size:1.5rem;">○</span><div class="empty-state-text">No assets pending review</div></div>';
+    }
+  }
+
+  function renderAssetList(assets) {
+    const list = document.getElementById('asset-list');
+    if (!assets.length) {
+      list.innerHTML = '<div class="empty-state"><span class="empty-state-icon">○</span><div class="empty-state-text">Waiting for assets...</div></div>';
+      return;
+    }
+    list.innerHTML = assets.map(a => `
+      <div class="asset-row is-${a.state}" id="asset-row-${a.asset_id}">
+        <div class="asset-num">#${a.asset_id}</div>
+        <div class="asset-info">
+          <div class="asset-type-label">${TYPE_LABELS[a.type] || a.type}</div>
+          <div class="asset-name">${a.filename || '—'}</div>
+          <div class="asset-prompt-preview">${a.prompt || ''}</div>
+        </div>
+        <div>${stateBadge(a.state)}</div>
+      </div>
+    `).join('');
+  }
+
+  function renderReviewPanel(asset) {
+    const { channel: ch, projectId: pid } = CTX.get();
+    const isImage = asset.type === 'image' || asset.type === 'thumbnail';
+    const isVideo = asset.type === 'animation';
+    const isAudio = asset.type === 'voice' || asset.type === 'music';
+
+    const fileUrl = asset.filename
+      ? assetFileUrl(ch, pid, asset.filename)
+      : null;
+
+    let previewHtml = '<div class="review-asset-preview" style="color:var(--text-3);font-size:0.75rem;">Loading...</div>';
+    if (fileUrl && isImage) {
+      previewHtml = `<div class="review-asset-preview"><img src="${fileUrl}" alt="asset preview" loading="lazy"></div>`;
+    } else if (fileUrl && isVideo) {
+      previewHtml = `<div class="review-asset-preview"><video src="${fileUrl}" controls style="width:100%"></video></div>`;
+    } else if (fileUrl && isAudio) {
+      previewHtml = `<div class="review-asset-preview" style="padding:1rem;"><audio src="${fileUrl}" controls style="width:100%"></audio></div>`;
+    }
+
+    const isError = asset.state === 'error';
+
+    document.getElementById('review-body').innerHTML = `
+      ${previewHtml}
+
+      <div class="section-label">Prompt</div>
+      <div class="review-prompt-box" id="review-prompt-static">${asset.prompt || '—'}</div>
+      <div class="review-prompt-edit" id="review-prompt-edit-wrap">
+        <textarea id="review-prompt-edit" style="min-height:80px;">${asset.prompt || ''}</textarea>
+      </div>
+
+      ${isError ? `<div class="text-error text-small" style="margin-bottom:0.75rem;padding:0.5rem;background:rgba(240,80,80,0.08);border-radius:4px;">${asset.error_detail || 'Unknown error'}</div>` : ''}
+
+      <div class="review-actions">
+        ${!isError ? `
+          <button class="btn btn-primary" onclick="approveAsset(${asset.asset_id})">✓ Approve</button>
+          ${isImage ? `<button class="btn btn-secondary" onclick="makeThumbnail(${asset.asset_id})">◈ Make Thumbnail</button>` : ''}
+          <button class="btn btn-secondary" onclick="togglePromptEdit(${asset.asset_id})">✎ Edit &amp; Retry</button>
+          <button class="btn btn-danger" onclick="rejectAsset(${asset.asset_id})">✕ Reject</button>
+        ` : `
+          <button class="btn btn-secondary" onclick="retryAsset(${asset.asset_id})">↺ Try Again</button>
+          <button class="btn btn-ghost" onclick="freezeAsset(${asset.asset_id})">❄ Freeze</button>
+          <button class="btn btn-danger" onclick="rejectAsset(${asset.asset_id})">✕ Reject</button>
+        `}
+      </div>
+
+      ${reviewQueue.length > 1 ? `<div class="text-muted text-small mt-1">${reviewQueue.length - 1} more in queue</div>` : ''}
+    `;
+  }
+
+  // ── Asset actions ───────────────────────────────────────────
+  const { channel: ch, projectId: pid } = CTX.get();
+
+  async function approveAsset(id) {
+    await API.post(`/api/projects/${ch}/${pid}/assets/${id}/approve`);
+    toast(`Asset #${id} approved`, 'ok');
+  }
+
+  async function rejectAsset(id) {
+    await API.post(`/api/projects/${ch}/${pid}/assets/${id}/reject`);
+    toast(`Asset #${id} rejected`, 'warn');
+  }
+
+  async function retryAsset(id) {
+    const editWrap = document.getElementById('review-prompt-edit-wrap');
+    const newPrompt = editWrap && !editWrap.classList.contains('hidden')
+      ? document.getElementById('review-prompt-edit').value.trim()
+      : null;
+    await API.post(`/api/projects/${ch}/${pid}/assets/${id}/retry`,
+      { new_prompt: newPrompt || null });
+    toast(`Asset #${id} retrying`, 'warn');
+  }
+
+  async function freezeAsset(id) {
+    await API.post(`/api/projects/${ch}/${pid}/assets/${id}/freeze`);
+    toast(`Asset #${id} frozen`, 'warn');
+  }
+
+  async function makeThumbnail(id) {
+    await API.post(`/api/projects/${ch}/${pid}/assets/${id}/thumbnail`);
+    toast(`Asset #${id} set as thumbnail`, 'ok');
+  }
+
+  function togglePromptEdit(id) {
+    const staticEl = document.getElementById('review-prompt-static');
+    const editWrap = document.getElementById('review-prompt-edit-wrap');
+    const isEditing = !editWrap.classList.contains('hidden');
+    if (isEditing) {
+      retryAsset(id);
+    } else {
+      staticEl.style.display = 'none';
+      editWrap.style.display = 'block';
+      editWrap.classList.remove('hidden');
+    }
+  }
+
+  // ── Add asset ───────────────────────────────────────────────
+  function showAddAsset() {
+    document.getElementById('add-asset-modal').classList.remove('hidden');
+  }
+  function hideAddAsset() {
+    document.getElementById('add-asset-modal').classList.add('hidden');
+  }
+  async function submitAddAsset() {
+    const type   = document.getElementById('add-asset-type').value;
+    const prompt = document.getElementById('add-asset-prompt').value.trim();
+    if (!prompt) { toast('Enter a prompt', 'warn'); return; }
+    await API.post(`/api/projects/${ch}/${pid}/assets/add`,
+      { asset_type: type, prompt });
+    toast('Asset dispatched', 'ok');
+    hideAddAsset();
+  }
+
+  // ── Delete project ──────────────────────────────────────────
+  async function deleteProject(ch, pid) {
+    if (!confirm('Delete this project? This cannot be undone.')) return;
+    try {
+      // No delete endpoint yet — placeholder
+      toast('Delete not yet implemented', 'warn');
+    } catch(e) { toast('Delete failed', 'error'); }
+  }
+
+  // ── Compile ─────────────────────────────────────────────────
+  function goCompile() {
+    goto('/compile');
+  }
+</script>
+</body>
+</html>

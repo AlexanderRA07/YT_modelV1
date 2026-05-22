@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Pipeline</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <header class="topbar">
+    <div class="topbar-logo">PIPELINE<span>/v1</span></div>
+    <div class="topbar-sep"></div>
+    <div class="topbar-status">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-label">connecting</span>
+    </div>
+  </header>
+
+  <main class="page-content">
+    <h1 class="page-title">Video Pipeline</h1>
+    <p class="page-subtitle">AI-assisted content production system</p>
+
+    <!-- Channel selector -->
+    <div class="card" style="max-width:340px; margin-bottom:2rem;">
+      <div class="section-label">Active Channel</div>
+      <select id="channel-select">
+        <option value="">Loading channels...</option>
+      </select>
+    </div>
+
+    <!-- Main tiles -->
+    <div class="home-grid">
+
+      <div class="home-tile" id="tile-new" onclick="startNew()">
+        <span class="tile-icon">＋</span>
+        <div class="tile-title">Start New</div>
+        <div class="tile-desc">Begin a new video project from a topic, manual entry, or CSV.</div>
+      </div>
+
+      <div class="home-tile" id="tile-continue" onclick="goto('/dashboard')">
+        <span class="tile-count" id="in-production-count">—</span>
+        <span class="tile-icon">▶</span>
+        <div class="tile-title">Continue</div>
+        <div class="tile-desc">Resume an in-progress project. Pick up exactly where you left off.</div>
+      </div>
+
+      <div class="home-tile" id="tile-finished" onclick="goto('/finished')">
+        <span class="tile-count" id="published-count">—</span>
+        <span class="tile-icon">◉</span>
+        <div class="tile-title">Review Finished</div>
+        <div class="tile-desc">Browse published videos with thumbnails, descriptions, and links.</div>
+      </div>
+
+    </div>
+
+    <!-- Health status -->
+    <div class="card mt-3" id="health-card">
+      <div class="section-label">Connector Status</div>
+      <div id="health-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.5rem;margin-top:0.5rem;">
+        <div class="stat-cell"><div class="stat-label">Loading...</div></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div id="toast-container"></div>
+<script src="/static/app.js"></script>
+<script>
+  let selectedChannel = null;
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    await loadChannels();
+    await loadCounts();
+    await loadHealth();
+  });
+
+  async function loadChannels() {
+    try {
+      const channels = await API.get('/api/channels');
+      const sel = document.getElementById('channel-select');
+      if (!channels.length) {
+        sel.innerHTML = '<option value="">No channels found</option>';
+        return;
+      }
+      sel.innerHTML = channels.map(c =>
+        `<option value="${c}">${c}</option>`
+      ).join('');
+      selectedChannel = channels[0];
+      sel.addEventListener('change', e => {
+        selectedChannel = e.target.value;
+        loadCounts();
+      });
+    } catch(e) {
+      toast('Could not load channels', 'error');
+    }
+  }
+
+  async function loadCounts() {
+    try {
+      const [inProd, published] = await Promise.all([
+        API.get('/api/projects/in-production'),
+        API.get('/api/projects/published')
+      ]);
+      document.getElementById('in-production-count').textContent = inProd.length || '0';
+      document.getElementById('published-count').textContent = published.length || '0';
+
+      const tile = document.getElementById('tile-continue');
+      if (!inProd.length) tile.classList.add('disabled');
+      else tile.classList.remove('disabled');
+    } catch(e) {}
+  }
+
+  async function loadHealth() {
+    try {
+      const health = await API.get('/api/health');
+      const grid = document.getElementById('health-grid');
+      grid.innerHTML = Object.entries(health).map(([name, ok]) => `
+        <div class="stat-cell">
+          <div class="stat-num" style="font-size:1rem;color:${ok ? 'var(--accent)' : 'var(--red)'}">
+            ${ok ? '●' : '○'}
+          </div>
+          <div class="stat-label">${name}</div>
+        </div>
+      `).join('');
+    } catch(e) {}
+  }
+
+  function startNew() {
+    if (!selectedChannel) { toast('Select a channel first', 'warn'); return; }
+    sessionStorage.setItem('channel', selectedChannel);
+    goto('/new');
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Project — Pipeline</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <header class="topbar">
+    <div class="topbar-logo">PIPELINE<span>/v1</span></div>
+    <a href="/" class="btn btn-ghost" style="font-size:0.75rem;">← Home</a>
+    <div class="topbar-sep"></div>
+    <div class="topbar-status">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-label">connecting</span>
+    </div>
+  </header>
+
+  <main class="page-content">
+
+    <!-- ── STEP 1: Topic ──────────────────────────────────── -->
+    <div id="step-topic">
+      <h1 class="page-title">New Project</h1>
+      <p class="page-subtitle">Choose a topic to begin</p>
+
+      <div class="card">
+        <div class="section-label">Topic Source</div>
+        <div class="btn-group mt-1">
+          <button class="btn btn-secondary" id="btn-from-csv" onclick="showCSVPicker()">Draw from CSV</button>
+          <button class="btn btn-secondary" onclick="showManualEntry()">Enter Manually</button>
+          <button class="btn btn-secondary" style="opacity:0.35;cursor:not-allowed;" title="Coming soon">Generate from Scratch</button>
+        </div>
+      </div>
+
+      <!-- CSV Picker -->
+      <div id="csv-picker" class="card mt-1 hidden">
+        <div class="card-header">
+          <div class="card-title">Select a Topic</div>
+          <button class="btn btn-ghost" onclick="resample()" id="btn-resample">Redraw 10</button>
+        </div>
+        <div class="topic-list" id="topic-list">
+          <div class="empty-state"><span class="empty-state-icon">○</span><div class="empty-state-text">Loading topics...</div></div>
+        </div>
+        <div class="mt-2 flex-center gap-1">
+          <button class="btn btn-primary" onclick="confirmCSVTopic()" id="btn-confirm-topic" disabled>Use Selected Topic →</button>
+        </div>
+      </div>
+
+      <!-- Manual entry -->
+      <div id="manual-entry" class="card mt-1 hidden">
+        <div class="card-title" style="margin-bottom:1rem;">Enter Topic Details</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Title</label>
+            <input type="text" id="manual-title" placeholder="e.g. How Black Holes Form">
+          </div>
+          <div class="form-group">
+            <label>Niche</label>
+            <input type="text" id="manual-niche" placeholder="e.g. science">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="manual-desc" placeholder="What is this video about? What angle or hook makes it interesting?"></textarea>
+        </div>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="save-to-csv" checked style="width:auto;margin-right:0.4rem;">
+            Save this topic to topics.csv
+          </label>
+        </div>
+        <button class="btn btn-primary" onclick="confirmManualTopic()">Continue →</button>
+      </div>
+    </div>
+
+    <!-- ── STEP 2: Format ─────────────────────────────────── -->
+    <div id="step-format" class="hidden">
+      <div class="flex-center gap-2 mb" style="margin-bottom:1.5rem;">
+        <button class="btn btn-ghost" onclick="showStep('topic')">← Back</button>
+        <h1 class="page-title" style="margin:0;">Select Format</h1>
+      </div>
+
+      <div class="card">
+        <div class="section-label">Selected Topic</div>
+        <div id="selected-topic-summary" style="font-size:0.9rem;color:var(--text-2);margin-top:0.5rem;"></div>
+      </div>
+
+      <div class="card mt-1">
+        <div class="section-label">Video Format</div>
+        <div class="format-grid mt-1">
+          <div class="format-option" onclick="selectFormat('1min')" data-fmt="1min">
+            <div class="f-label">1 min</div>
+            <div class="f-note">3 images · short-form</div>
+          </div>
+          <div class="format-option" onclick="selectFormat('2min')" data-fmt="2min">
+            <div class="f-label">2 min</div>
+            <div class="f-note">5 images · short-form</div>
+          </div>
+          <div class="format-option" onclick="selectFormat('10min')" data-fmt="10min">
+            <div class="f-label">10 min</div>
+            <div class="f-note">15 images · long-form</div>
+          </div>
+          <div class="format-option" onclick="selectFormat('15min')" data-fmt="15min">
+            <div class="f-label">15 min</div>
+            <div class="f-note">23 images · long-form</div>
+          </div>
+        </div>
+        <div class="mt-2">
+          <button class="btn btn-primary" onclick="createAndGenerate()" id="btn-create" disabled>
+            Generate Script →
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STEP 3: Script Review ──────────────────────────── -->
+    <div id="step-script" class="hidden">
+      <div class="flex-center gap-2" style="margin-bottom:1.5rem;">
+        <h1 class="page-title" style="margin:0;">Script Review</h1>
+        <span id="script-status-badge" class="state-badge state-pending">Generating...</span>
+      </div>
+
+      <div class="script-editor">
+        <div class="script-toolbar">
+          <span class="script-toolbar-label" id="script-word-count">— words</span>
+          <button class="btn btn-ghost" onclick="copyScript()" style="font-size:0.75rem;">Copy</button>
+        </div>
+        <textarea id="script-textarea" placeholder="Script will appear here once generated..." oninput="updateWordCount()"></textarea>
+      </div>
+
+      <div class="card mt-1">
+        <div class="section-label">Tags (appended to description)</div>
+        <div id="tags-preview" class="text-muted text-small mt-1" style="line-height:1.8;">—</div>
+      </div>
+
+      <div class="card mt-1">
+        <div class="btn-group">
+          <button class="btn btn-secondary" onclick="retryScript()" id="btn-retry-script" disabled>
+            ↺ Retry
+          </button>
+          <button class="btn btn-secondary" onclick="approveScript(false)" id="btn-approve-script" disabled>
+            ✓ Approve
+          </button>
+          <button class="btn btn-primary" onclick="approveScript(true)" id="btn-full-approve-script" disabled>
+            ✓✓ Full Approve
+          </button>
+        </div>
+        <p class="text-muted text-small mt-1">
+          <strong>Approve</strong> — review each prompt before generation.
+          <strong>Full Approve</strong> — dispatch all assets automatically.
+        </p>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div id="toast-container"></div>
+<script src="/static/app.js"></script>
+<script>
+  const channel = sessionStorage.getItem('channel');
+  if (!channel) goto('/');
+
+  let selectedTopic = null;
+  let selectedFormat = null;
+  let currentProjectId = null;
+  let currentProjectChannel = null;
+  let csvSample = [];
+
+  // ── Steps ──────────────────────────────────────────────────
+  function showStep(name) {
+    ['topic','format','script'].forEach(s => {
+      document.getElementById(`step-${s}`).classList.add('hidden');
+    });
+    document.getElementById(`step-${name}`).classList.remove('hidden');
+  }
+
+  // ── CSV Picker ─────────────────────────────────────────────
+  async function showCSVPicker() {
+    document.getElementById('csv-picker').classList.remove('hidden');
+    document.getElementById('manual-entry').classList.add('hidden');
+    await loadSample();
+  }
+
+  async function loadSample() {
+    try {
+      const available = await API.get(`/api/channels/${channel}/topics/available`);
+      if (available.count === 0) {
+        document.getElementById('btn-from-csv').style.opacity = '0.35';
+        document.getElementById('btn-from-csv').disabled = true;
+        document.getElementById('topic-list').innerHTML =
+          '<div class="empty-state"><span class="empty-state-icon">○</span><div class="empty-state-text">No available topics in CSV.</div></div>';
+        return;
+      }
+      const sample = await API.get(`/api/channels/${channel}/topics/sample?n=10`);
+      csvSample = sample;
+      renderTopics(sample);
+      document.getElementById('btn-resample').style.display =
+        available.count <= 10 ? 'none' : '';
+    } catch(e) {
+      toast('Could not load topics', 'error');
+    }
+  }
+
+  async function resample() {
+    const sample = await API.get(`/api/channels/${channel}/topics/sample?n=10`);
+    csvSample = sample;
+    selectedTopic = null;
+    document.getElementById('btn-confirm-topic').disabled = true;
+    renderTopics(sample);
+  }
+
+  function renderTopics(topics) {
+    const list = document.getElementById('topic-list');
+    if (!topics.length) {
+      list.innerHTML = '<div class="empty-state"><span class="empty-state-icon">○</span><div class="empty-state-text">No available topics.</div></div>';
+      return;
+    }
+    list.innerHTML = topics.map(t => `
+      <div class="topic-item" onclick="selectTopic(${t.id})" data-id="${t.id}">
+        <div>
+          <div class="topic-name">${t.name}</div>
+          <div class="topic-desc">${t.description || ''}</div>
+        </div>
+        <div class="topic-niche">${t.niche || ''}</div>
+      </div>
+    `).join('');
+  }
+
+  function selectTopic(id) {
+    document.querySelectorAll('.topic-item').forEach(el => {
+      el.classList.toggle('selected', el.dataset.id == id);
+    });
+    selectedTopic = csvSample.find(t => t.id == id);
+    document.getElementById('btn-confirm-topic').disabled = false;
+  }
+
+  function confirmCSVTopic() {
+    if (!selectedTopic) return;
+    showStep('format');
+    document.getElementById('selected-topic-summary').innerHTML =
+      `<strong>${selectedTopic.name}</strong> <span class="text-muted">— ${selectedTopic.niche}</span><br>
+       <span style="font-size:0.8rem">${selectedTopic.description || ''}</span>`;
+  }
+
+  // ── Manual Entry ───────────────────────────────────────────
+  function showManualEntry() {
+    document.getElementById('manual-entry').classList.remove('hidden');
+    document.getElementById('csv-picker').classList.add('hidden');
+  }
+
+  async function confirmManualTopic() {
+    const title = document.getElementById('manual-title').value.trim();
+    const niche = document.getElementById('manual-niche').value.trim();
+    const desc  = document.getElementById('manual-desc').value.trim();
+    if (!title || !niche) { toast('Title and niche are required', 'warn'); return; }
+
+    selectedTopic = { id: null, name: title, niche, description: desc };
+
+    if (document.getElementById('save-to-csv').checked) {
+      try {
+        await API.post(`/api/channels/${channel}/topics/add`,
+          { name: title, niche, description: desc });
+        toast('Topic saved to CSV', 'ok');
+      } catch(e) { toast('Could not save to CSV', 'warn'); }
+    }
+
+    showStep('format');
+    document.getElementById('selected-topic-summary').innerHTML =
+      `<strong>${title}</strong> <span class="text-muted">— ${niche}</span><br>
+       <span style="font-size:0.8rem">${desc}</span>`;
+  }
+
+  // ── Format ─────────────────────────────────────────────────
+  function selectFormat(fmt) {
+    document.querySelectorAll('.format-option').forEach(el => {
+      el.classList.toggle('selected', el.dataset.fmt === fmt);
+    });
+    selectedFormat = fmt;
+    document.getElementById('btn-create').disabled = false;
+  }
+
+  // ── Create project & generate script ──────────────────────
+  async function createAndGenerate() {
+    if (!selectedTopic || !selectedFormat) return;
+    document.getElementById('btn-create').disabled = true;
+    document.getElementById('btn-create').textContent = 'Creating...';
+
+    try {
+      const result = await API.post('/api/projects/create', {
+        channel,
+        title:       selectedTopic.name,
+        niche:       selectedTopic.niche,
+        description: selectedTopic.description || '',
+        format:      selectedFormat,
+        topic_id:    selectedTopic.id || null
+      });
+
+      currentProjectId = result.project_id;
+      currentProjectChannel = channel;
+      CTX.set(channel, result.project_id);
+
+      showStep('script');
+      document.getElementById('script-status-badge').textContent = 'Generating...';
+      document.getElementById('script-status-badge').className = 'state-badge state-pending';
+
+      // Start generation
+      await API.post(`/api/projects/${channel}/${result.project_id}/script/generate`);
+      toast('Script generation started', 'ok');
+
+    } catch(e) {
+      toast(`Failed to create project: ${e.message}`, 'error');
+      document.getElementById('btn-create').disabled = false;
+      document.getElementById('btn-create').textContent = 'Generate Script →';
+    }
+  }
+
+  // ── Script review ──────────────────────────────────────────
+  onMessage(msg => {
+    if (msg.type === 'status_update') {
+      const text = msg.payload.text;
+      if (text.includes('Script ready')) {
+        // Load state to get the draft
+        loadScriptFromState();
+      }
+    }
+    if (msg.type === 'project_error') {
+      toast(msg.payload.detail, 'error');
+      document.getElementById('script-status-badge').textContent = 'Error';
+      document.getElementById('script-status-badge').className = 'state-badge state-error';
+    }
+  });
+
+  async function loadScriptFromState() {
+    if (!currentProjectId) return;
+    try {
+      const state = await API.get(`/api/projects/${channel}/${currentProjectId}/state`);
+      const draft = state.script.draft;
+      const tags  = state.script.tags;
+
+      document.getElementById('script-textarea').value = draft;
+      document.getElementById('script-status-badge').textContent = 'Ready';
+      document.getElementById('script-status-badge').className = 'state-badge state-review';
+      document.getElementById('tags-preview').textContent = tags.join(', ') || '—';
+
+      ['btn-retry-script','btn-approve-script','btn-full-approve-script'].forEach(id => {
+        document.getElementById(id).disabled = false;
+      });
+
+      updateWordCount();
+    } catch(e) {
+      toast('Could not load script state', 'error');
+    }
+  }
+
+  async function retryScript() {
+    ['btn-retry-script','btn-approve-script','btn-full-approve-script'].forEach(id => {
+      document.getElementById(id).disabled = true;
+    });
+    document.getElementById('script-textarea').value = '';
+    document.getElementById('script-status-badge').textContent = 'Regenerating...';
+    document.getElementById('script-status-badge').className = 'state-badge state-pending';
+    await API.post(`/api/projects/${channel}/${currentProjectId}/script/generate`);
+  }
+
+  async function approveScript(fullApprove) {
+    const finalScript = document.getElementById('script-textarea').value.trim();
+    if (!finalScript) { toast('Script is empty', 'warn'); return; }
+
+    // Parse tags from end of script
+    let tags = [];
+    if (finalScript.includes('---TAGS---')) {
+      const parts = finalScript.split('---TAGS---');
+      tags = parts[1].trim().split(',').map(t => t.trim()).filter(Boolean);
+    }
+
+    // Save style diff (draft vs final) via state already on server
+    // Shot list is parsed server-side from the approved script
+    try {
+      await API.post(`/api/projects/${channel}/${currentProjectId}/script/approve`, {
+        final_script: finalScript,
+        tags,
+        shot_list: [],   // server will extract via extract_shot_list()
+        full_approve: fullApprove
+      });
+      toast(fullApprove ? 'Full approve — generating all assets' : 'Script approved', 'ok');
+      CTX.set(channel, currentProjectId);
+      goto('/dashboard');
+    } catch(e) {
+      toast(`Approval failed: ${e.message}`, 'error');
+    }
+  }
+
+  function updateWordCount() {
+    const text = document.getElementById('script-textarea').value;
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    document.getElementById('script-word-count').textContent = `${words} words`;
+  }
+
+  function copyScript() {
+    const text = document.getElementById('script-textarea').value;
+    navigator.clipboard.writeText(text).then(() => toast('Copied', 'ok'));
+  }
+</script>
+</body>
+</html>

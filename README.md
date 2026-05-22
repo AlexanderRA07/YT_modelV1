@@ -109,11 +109,67 @@ at `http://127.0.0.1:8000`.
 ## Development Phases
 
 - [x] Phase 0 — Scaffolding
-- [ ] Phase 1 — Data layer (CSV, state, trash)
-- [ ] Phase 2 — Logic engine (pipeline, retry, error handling, queue)
-- [ ] Phase 3 — AI connectors
-- [ ] Phase 4 — FastAPI backend
-- [ ] Phase 5 — HTML frontend
+- [x] Phase 1 — Data layer (CSV, state, trash)
+- [x] Phase 2 — Logic engine (pipeline, retry, error handling, queue)
+- [x] Phase 3 — AI connectors
+- [x] Phase 4 — FastAPI backend
+- [X] Phase 5 — HTML frontend
 - [ ] Phase 6 — Video compilation
 - [ ] Phase 7 — Manual upload export
 - [ ] Phase 8 — YouTube API automation
+
+---
+
+## Managing Channels
+
+Channels are directories under `/channels/`. The app discovers them automatically
+by scanning that directory — no config files need updating.
+
+### Renaming a channel
+
+```bash
+mv channels/old-name channels/new-name
+```
+
+If any projects are currently in-production under that channel, their
+`project_state.json` files contain a `"channel"` field that will need updating
+to match the new name:
+
+```bash
+# Find and update all affected state files
+sed -i 's/"channel": "old-name"/"channel": "new-name"/g' \
+  channels/new-name/in-production/*/project_state.json
+```
+
+If no projects are in-production, the rename is instant.
+
+### Adding a new channel
+
+```bash
+mkdir -p channels/new-channel-name/{style_diffs,templates,in-production,published}
+touch channels/new-channel-name/topics.csv
+touch channels/new-channel-name/style_guide.md
+touch channels/new-channel-name/performance-log.csv
+```
+
+The homepage channel selector will pick it up automatically on next page load.
+
+### Channel contents
+
+Each channel directory holds:
+
+| File / Folder        | Purpose                                              |
+|----------------------|------------------------------------------------------|
+| `topics.csv`         | Planned and completed video topics                   |
+| `style_guide.md`     | Per-channel tone, structure rules, banned phrases    |
+| `performance-log.csv`| CTR, view duration, subscriber conversion per video  |
+| `style_diffs/`       | Draft vs final script diffs for style guide updates  |
+| `templates/`         | Reusable prompts and shot list templates             |
+| `in-production/`     | Active projects                                      |
+| `published/`         | Archived projects after upload                       |
+
+### Per-channel configuration (future)
+
+A `channel_config.json` file per channel can be added to store channel-specific
+settings such as ElevenLabs voice ID, Flux style preset, or default format.
+This is not yet implemented but fits naturally into the existing structure.

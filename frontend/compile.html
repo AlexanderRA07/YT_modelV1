@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compile — Pipeline</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <header class="topbar">
+    <div class="topbar-logo">PIPELINE<span>/v1</span></div>
+    <a href="/dashboard" class="btn btn-ghost" style="font-size:0.75rem;">← Dashboard</a>
+    <span id="topbar-project-title" class="text-muted text-small" style="padding-left:0.5rem;"></span>
+    <div class="topbar-sep"></div>
+    <div class="topbar-status">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-label">connecting</span>
+    </div>
+  </header>
+
+  <main class="page-content">
+    <h1 class="page-title">Compile & Export</h1>
+    <p class="page-subtitle">Assemble approved assets and prepare the upload package</p>
+
+    <!-- Asset summary -->
+    <div class="card" id="asset-summary">
+      <div class="section-label">Approved Assets</div>
+      <div id="asset-summary-grid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:0.5rem;margin-top:0.5rem;">
+        <div class="stat-cell"><div class="stat-label">Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- Compile action -->
+    <div class="card mt-1" id="compile-card">
+      <div class="card-title" style="margin-bottom:0.5rem;">Compile Video</div>
+      <p class="text-muted text-small" style="margin-bottom:1rem;">
+        All approved assets will be assembled into a single .mp4.
+        This may take a few minutes.
+      </p>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btn-compile" onclick="startCompile()">
+          ▶ Compile
+        </button>
+      </div>
+      <div id="compile-status" class="text-muted text-small mt-1"></div>
+    </div>
+
+    <!-- Video preview (shown after compile) -->
+    <div class="card mt-1 hidden" id="video-preview-card">
+      <div class="card-title" style="margin-bottom:1rem;">Video Preview</div>
+      <video id="video-preview" controls style="width:100%;border-radius:4px;background:#000;"></video>
+    </div>
+
+    <!-- Metadata editor -->
+    <div class="card mt-1" id="metadata-card">
+      <div class="card-title" style="margin-bottom:1rem;">Upload Metadata</div>
+
+      <div class="form-group">
+        <label>Title</label>
+        <input type="text" id="meta-title">
+      </div>
+
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="meta-description" style="min-height:180px;"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Tags (comma separated)</label>
+        <input type="text" id="meta-tags">
+      </div>
+
+      <div class="form-group">
+        <label>Thumbnail</label>
+        <div id="thumbnail-preview" style="width:220px;height:124px;background:var(--bg-4);border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:0.75rem;overflow:hidden;">
+          No thumbnail
+        </div>
+        <div class="text-muted text-small mt-1">Thumbnail is set from the asset marked as Thumbnail in the dashboard.</div>
+      </div>
+    </div>
+
+    <!-- Sources / credits -->
+    <div class="card mt-1">
+      <div class="card-title" style="margin-bottom:0.75rem;">Research Credits</div>
+      <div id="sources-list" class="text-muted text-small" style="line-height:2;">
+        No sources recorded.
+      </div>
+    </div>
+
+    <!-- Export & publish -->
+    <div class="card mt-1">
+      <div class="card-title" style="margin-bottom:0.75rem;">Export & Publish</div>
+      <p class="text-muted text-small" style="margin-bottom:1rem;">
+        Export generates the upload package (mp4 + metadata). Then upload manually via YouTube Studio.
+        Once uploaded, enter the video URL below to mark this project as published.
+      </p>
+      <div class="btn-group">
+        <button class="btn btn-secondary" id="btn-export" onclick="exportPackage()">
+          ↓ Export Package
+        </button>
+      </div>
+
+      <hr class="divider">
+
+      <div class="form-group">
+        <label>YouTube Video URL (after upload)</label>
+        <input type="text" id="video-url-input" placeholder="https://www.youtube.com/watch?v=...">
+      </div>
+      <button class="btn btn-primary" onclick="markPublished()">
+        ✓ Mark as Published
+      </button>
+    </div>
+
+  </main>
+</div>
+
+<div id="toast-container"></div>
+<script src="/static/app.js"></script>
+<script>
+  const { channel, projectId } = CTX.get();
+  if (!channel || !projectId) goto('/');
+
+  let projectState = null;
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    await loadState();
+  });
+
+  onMessage(async (msg) => {
+    if (msg.type === 'status_update') {
+      const text = msg.payload.text;
+      document.getElementById('compile-status').textContent = text;
+      if (text.includes('Compilation complete')) {
+        toast('Compilation complete!', 'ok');
+        await loadState();
+        showVideoPreview();
+      }
+    }
+    if (msg.type === 'project_error' && msg.payload.module === 'compiler') {
+      toast('Compilation failed: ' + msg.payload.detail, 'error', 8000);
+      document.getElementById('compile-status').textContent = 'Compilation failed.';
+    }
+  });
+
+  async function loadState() {
+    try {
+      const state = await API.get(`/api/projects/${channel}/${projectId}/state`);
+      projectState = state;
+
+      document.getElementById('topbar-project-title').textContent = state.title;
+
+      // Populate metadata fields
+      document.getElementById('meta-title').value = state.title || '';
+      const tags = (state.script?.tags || []).join(', ');
+      document.getElementById('meta-tags').value = tags;
+
+      // Build description with credits
+      const sources = state.sources || [];
+      let desc = state.description || '';
+      if (sources.length) {
+        desc += '\n\n── Sources & Credits ──\n';
+        sources.forEach(s => {
+          desc += s.title ? `${s.title}: ${s.url}\n` : `${s.url}\n`;
+        });
+      }
+      document.getElementById('meta-description').value = desc;
+
+      // Sources list
+      if (sources.length) {
+        document.getElementById('sources-list').innerHTML = sources.map(s =>
+          `<div>• ${s.title ? `<strong>${s.title}</strong> — ` : ''}${s.url}</div>`
+        ).join('');
+      }
+
+      // Asset summary
+      renderAssetSummary(state.assets || []);
+
+      // Thumbnail preview
+      const thumbAsset = (state.assets || []).find(a => a.state === 'thumbnail');
+      if (thumbAsset && thumbAsset.filename) {
+        const url = assetFileUrl(channel, projectId, thumbAsset.filename);
+        document.getElementById('thumbnail-preview').innerHTML =
+          `<img src="${url}" style="width:100%;height:100%;object-fit:cover;">`;
+      }
+
+    } catch(e) {
+      toast('Could not load project state', 'error');
+    }
+  }
+
+  function renderAssetSummary(assets) {
+    const counts = { image: 0, animation: 0, voice: 0, music: 0, thumbnail: 0 };
+    assets.forEach(a => {
+      if (['approved','done','animating','thumbnail'].includes(a.state)) {
+        if (counts[a.type] !== undefined) counts[a.type]++;
+      }
+    });
+    document.getElementById('asset-summary-grid').innerHTML =
+      Object.entries(counts).map(([type, count]) => `
+        <div class="stat-cell">
+          <div class="stat-num" style="color:${count > 0 ? 'var(--accent)' : 'var(--text-3)'}">${count}</div>
+          <div class="stat-label">${TYPE_LABELS[type] || type}</div>
+        </div>
+      `).join('');
+  }
+
+  async function startCompile() {
+    document.getElementById('btn-compile').disabled = true;
+    document.getElementById('btn-compile').textContent = 'Compiling...';
+    document.getElementById('compile-status').textContent = 'Starting compilation...';
+    try {
+      await API.post(`/api/projects/${channel}/${projectId}/compile`);
+    } catch(e) {
+      toast('Compile request failed: ' + e.message, 'error');
+      document.getElementById('btn-compile').disabled = false;
+      document.getElementById('btn-compile').textContent = '▶ Compile';
+    }
+  }
+
+  function showVideoPreview() {
+    const card = document.getElementById('video-preview-card');
+    const vid  = document.getElementById('video-preview');
+    const url  = `/api/projects/${channel}/${projectId}/assets/file/output.mp4`;
+    vid.src = url;
+    card.classList.remove('hidden');
+  }
+
+  async function exportPackage() {
+    // Trigger browser download of the export directory contents
+    // For now, open the output.mp4 directly -- full zip export is a future enhancement
+    const url = `/api/projects/${channel}/${projectId}/assets/file/output.mp4`;
+    window.open(url, '_blank');
+    toast('Opening output.mp4 — save metadata fields manually for now', 'warn', 6000);
+  }
+
+  async function markPublished() {
+    const videoUrl = document.getElementById('video-url-input').value.trim();
+    if (!videoUrl) { toast('Enter the YouTube video URL first', 'warn'); return; }
+    try {
+      await API.post(`/api/projects/${channel}/${projectId}/publish`,
+        { video_url: videoUrl });
+      toast('Project marked as published!', 'ok');
+      setTimeout(() => goto('/'), 2000);
+    } catch(e) {
+      toast('Could not mark as published: ' + e.message, 'error');
+    }
+  }
+</script>
+</body>
+</html>
