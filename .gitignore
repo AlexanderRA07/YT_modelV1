@@ -1,0 +1,42 @@
+# ============================================================
+# .gitignore
+# ============================================================
+
+# Environment & secrets
+.env
+
+# Python virtual environment
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Generated assets (large binary files, not for version control)
+channels/*/in-production/*/assets/
+channels/*/in-production/*/trash/
+channels/*/in-production/*/export/
+channels/*/published/
+
+# Keep the channel folder structure but not its content
+# (topics.csv, style_guide.md, performance-log.csv ARE committed)
+!channels/*/topics.csv
+!channels/*/style_guide.md
+!channels/*/performance-log.csv
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log

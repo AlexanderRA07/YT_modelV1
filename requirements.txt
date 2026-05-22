@@ -1,0 +1,42 @@
+# ============================================================
+# requirements.txt
+# Install with: pip install -r requirements.txt
+# ============================================================
+
+# Web framework & server
+fastapi
+uvicorn[standard]
+
+# WebSocket support
+websockets
+
+# Environment variable management
+python-dotenv
+
+# HTTP requests (for API connectors)
+httpx
+requests
+
+# Anthropic (Claude)
+anthropic
+
+# ElevenLabs
+elevenlabs
+
+# Video assembly
+moviepy
+
+# Image handling
+Pillow
+
+# Data handling
+pandas
+
+# YouTube Data API (future phase)
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+
+# Utilities
+aiofiles
+python-multipart
