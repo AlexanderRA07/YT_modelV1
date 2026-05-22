@@ -114,7 +114,7 @@ at `http://127.0.0.1:8000`.
 - [x] Phase 3 — AI connectors
 - [x] Phase 4 — FastAPI backend
 - [X] Phase 5 — HTML frontend
-- [ ] Phase 6 — Video compilation
+- [X] Phase 6 — Video compilation
 - [ ] Phase 7 — Manual upload export
 - [ ] Phase 8 — YouTube API automation
 
