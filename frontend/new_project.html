@@ -59,7 +59,9 @@
           </div>
           <div class="form-group">
             <label>Niche</label>
-            <input type="text" id="manual-niche" placeholder="e.g. science">
+            <input type="text" id="manual-niche" placeholder="e.g. science"
+              list="niche-suggestions" autocomplete="off">
+            <datalist id="niche-suggestions"></datalist>
           </div>
         </div>
         <div class="form-group">
@@ -137,6 +139,25 @@
       </div>
 
       <div class="card mt-1">
+        <div class="section-label">Video Description</div>
+        <div id="description-preview" class="text-muted text-small mt-1" style="line-height:1.7;white-space:pre-wrap;">—</div>
+      </div>
+
+      <div class="card mt-1">
+        <div class="section-label">Credits &amp; Sources</div>
+        <div id="credits-preview" class="text-muted text-small mt-1" style="line-height:1.8;" id="credits-preview">—</div>
+      </div>
+
+      <div id="error-log" class="card mt-1 hidden">
+        <div class="section-label" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>⚠ Generation Errors</span>
+          <button class="btn btn-ghost" style="font-size:0.7rem;padding:2px 8px;"
+                  onclick="document.getElementById('error-log').classList.add('hidden')">dismiss</button>
+        </div>
+        <ul id="error-log-list" style="margin:0.75rem 0 0;padding:0;list-style:none;"></ul>
+      </div>
+
+      <div class="card mt-1">
         <div class="btn-group">
           <button class="btn btn-secondary" onclick="retryScript()" id="btn-retry-script" disabled>
             ↺ Retry
@@ -169,6 +190,66 @@
   let currentProjectId = null;
   let currentProjectChannel = null;
   let csvSample = [];
+
+  // ── Resume detection ───────────────────────────────────────
+const _params = new URLSearchParams(window.location.search);
+const _resumeProjectId = _params.get('project_id');
+const _resumeChannel   = _params.get('channel');
+const _isResume        = _params.get('resume') === '1';
+
+if (_isResume && _resumeProjectId && _resumeChannel) {
+  (async () => {
+    try {
+      const state = await API.get(`/api/projects/${_resumeChannel}/${_resumeProjectId}/state`);
+
+      // Restore context
+      currentProjectId      = _resumeProjectId;
+      currentProjectChannel = _resumeChannel;
+      CTX.set(_resumeChannel, _resumeProjectId);
+
+      if (state.script_approved) {
+        // Shouldn't happen (dashboard handles this), but just in case
+        goto('/dashboard');
+        return;
+      }
+
+      if (state.script && state.script.draft) {
+        // Script was generated but not approved — go straight to review
+        showStep('script');
+        document.getElementById('script-status-badge').textContent = 'Ready';
+        document.getElementById('script-status-badge').className = 'state-badge state-review';
+        await loadScriptFromState();
+      } else {
+        // Script generation failed or never completed — restore topic/format
+        // and land on format selection so they can retry immediately
+        selectedTopic = {
+          id:          null,
+          name:        state.title,
+          niche:       state.niche,
+          description: state.description
+        };
+        selectedFormat = state.format;
+
+        // Pre-fill the selected topic summary
+        document.getElementById('selected-topic-summary').innerHTML =
+          `<strong>${state.title}</strong> <span class="text-muted">— ${state.niche}</span><br>
+           <span style="font-size:0.8rem">${state.description || ''}</span>`;
+
+        // Pre-select the format button visually
+        document.querySelectorAll('.format-option').forEach(el => {
+          el.classList.toggle('selected', el.dataset.fmt === state.format);
+        });
+        document.getElementById('btn-create').disabled = false;
+        document.getElementById('btn-create').textContent = 'Retry Script Generation →';
+
+        showStep('format');
+        toast('Resumed — retry script generation below', 'ok');
+      }
+    } catch(e) {
+      toast('Could not resume project', 'error');
+    }
+  })();
+}
 
   // ── Steps ──────────────────────────────────────────────────
   function showStep(name) {
@@ -247,9 +328,16 @@
   }
 
   // ── Manual Entry ───────────────────────────────────────────
-  function showManualEntry() {
+  async function showManualEntry() {
     document.getElementById('manual-entry').classList.remove('hidden');
     document.getElementById('csv-picker').classList.add('hidden');
+    try {
+      const result = await API.get(`/api/channels/${channel}/niches`);
+      const dl = document.getElementById('niche-suggestions');
+      dl.innerHTML = result.niches
+        .map(n => `<option value="${n}">`)
+        .join('');
+    } catch(e) { /* silently ignore — datalist is enhancement only */ }
   }
 
   async function confirmManualTopic() {
@@ -328,9 +416,22 @@
       }
     }
     if (msg.type === 'project_error') {
-      toast(msg.payload.detail, 'error');
+      toast(msg.payload.detail.split('\n')[0], 'error', 6000);
       document.getElementById('script-status-badge').textContent = 'Error';
       document.getElementById('script-status-badge').className = 'state-badge state-error';
+      const panel = document.getElementById('error-log');
+      const list  = document.getElementById('error-log-list');
+      panel.classList.remove('hidden');
+      const li = document.createElement('li');
+      li.style.cssText = 'padding:0.5rem 0;border-top:1px solid var(--border);font-size:0.78rem;';
+      li.innerHTML = `
+        <div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;">
+          <span style="color:var(--accent-red,#ff4444);font-weight:600;">[${msg.payload.module}]</span>
+          <span style="color:var(--text-muted);">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+        </div>
+        <pre style="white-space:pre-wrap;margin:0;color:var(--text-muted);font-size:0.72rem;">${msg.payload.detail}</pre>
+      `;
+      list.appendChild(li);
     }
   });
 
@@ -338,18 +439,37 @@
     if (!currentProjectId) return;
     try {
       const state = await API.get(`/api/projects/${channel}/${currentProjectId}/state`);
-      const draft = state.script.draft;
-      const tags  = state.script.tags;
+      const draft       = state.script.draft;
+      const tags        = state.script.tags;
+      const description = state.script.description || '';
+      const credits     = state.script.credits     || '';
 
       document.getElementById('script-textarea').value = draft;
       document.getElementById('script-status-badge').textContent = 'Ready';
       document.getElementById('script-status-badge').className = 'state-badge state-review';
       document.getElementById('tags-preview').textContent = tags.join(', ') || '—';
+      document.getElementById('description-preview').textContent = description || '—';
+
+      // Render credits with hyperlinks
+      const creditsEl = document.getElementById('credits-preview');
+      if (credits && credits !== 'None') {
+        creditsEl.innerHTML = credits.split('\n')
+          .filter(line => line.trim())
+          .map(line => {
+            if (line.includes(' | ')) {
+              const [label, url] = line.split(' | ', 2);
+              return `<div>${label.trim()} — <a href="${url.trim()}" target="_blank" 
+                style="color:var(--accent);">${url.trim()}</a></div>`;
+            }
+            return `<div>${line}</div>`;
+          }).join('');
+      } else {
+        creditsEl.textContent = '—';
+      }
 
       ['btn-retry-script','btn-approve-script','btn-full-approve-script'].forEach(id => {
         document.getElementById(id).disabled = false;
       });
-
       updateWordCount();
     } catch(e) {
       toast('Could not load script state', 'error');

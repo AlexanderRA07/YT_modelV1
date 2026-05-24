@@ -138,6 +138,17 @@
   </main>
 </div>
 
+<div id="error-log" style="position:fixed;bottom:1rem;left:1rem;width:380px;max-height:60vh;overflow-y:auto;z-index:999;display:none;">
+  <div class="card" style="border-color:var(--accent-red,#ff4444);">
+    <div class="section-label" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>⚠ Pipeline Errors</span>
+      <button class="btn btn-ghost" style="font-size:0.7rem;padding:2px 8px;"
+              onclick="document.getElementById('error-log').style.display='none'">dismiss</button>
+    </div>
+    <ul id="error-log-list" style="margin:0.75rem 0 0;padding:0;list-style:none;"></ul>
+  </div>
+</div>
+
 <div id="toast-container"></div>
 <script src="/static/app.js"></script>
 <script>
@@ -162,12 +173,25 @@
     if (type === 'asset_state_change' || type === 'asset_returned') {
       await refreshState();
     }
-    if (type === 'asset_error') {
-      toast(`Asset ${msg.payload.asset_id} error: ${msg.payload.module}`, 'error', 6000);
-      await refreshState();
-    }
-    if (type === 'project_error') {
-      toast(`Pipeline error: ${msg.payload.module}`, 'error', 8000);
+    if (type === 'asset_error' || type === 'project_error') {
+      const label  = type === 'asset_error'
+        ? `Asset #${msg.payload.asset_id} [${msg.payload.module}]`
+        : `Pipeline [${msg.payload.module}]`;
+      toast(label, 'error', 6000);
+
+      const panel = document.getElementById('error-log');
+      const list  = document.getElementById('error-log-list');
+      panel.style.display = 'block';
+      const li = document.createElement('li');
+      li.style.cssText = 'padding:0.5rem 0;border-top:1px solid var(--border);font-size:0.78rem;';
+      li.innerHTML = `
+        <div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;">
+          <span style="color:var(--accent-red,#ff4444);font-weight:600;">${label}</span>
+          <span style="color:var(--text-muted);">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+        </div>
+        <pre style="white-space:pre-wrap;margin:0;color:var(--text-muted);font-size:0.72rem;">${msg.payload.detail}</pre>
+      `;
+      list.appendChild(li);
       await refreshState();
     }
     if (type === 'compile_ready') {
@@ -183,19 +207,43 @@
   });
 
   // ── Project loading ─────────────────────────────────────────
+  // async function loadProject(ch, pid) {
+  //   try {
+  //     const state = await API.get(`/api/projects/${ch}/${pid}/state`);
+  //     projectState = state;
+  //     CTX.set(ch, pid);
+  //     // Re-dispatch any jobs that died on server restart
+  //     await API.post(`/api/projects/${ch}/${pid}/resume`);
+  //     renderDashboard(state);
+  //     document.getElementById('project-picker').classList.add('hidden');
+  //     document.getElementById('dashboard-main').classList.remove('hidden');
+  //   } catch(e) {
+  //     toast('Could not load project', 'error');
+  //     showProjectPicker();
+  //   }
+  // }
   async function loadProject(ch, pid) {
-    try {
-      const state = await API.get(`/api/projects/${ch}/${pid}/state`);
-      projectState = state;
+  try {
+    const state = await API.get(`/api/projects/${ch}/${pid}/state`);
+
+    // Redirect back to script review if script not yet approved
+    if (!state.script_approved) {
       CTX.set(ch, pid);
-      renderDashboard(state);
-      document.getElementById('project-picker').classList.add('hidden');
-      document.getElementById('dashboard-main').classList.remove('hidden');
-    } catch(e) {
-      toast('Could not load project', 'error');
-      showProjectPicker();
+      goto(`/new?channel=${ch}&project_id=${pid}&resume=1`);
+      return;
     }
+
+    projectState = state;
+    CTX.set(ch, pid);
+    await API.post(`/api/projects/${ch}/${pid}/resume`);
+    renderDashboard(state);
+    document.getElementById('project-picker').classList.add('hidden');
+    document.getElementById('dashboard-main').classList.remove('hidden');
+  } catch(e) {
+    toast('Could not load project', 'error');
+    showProjectPicker();
   }
+}
 
   async function refreshState() {
     const { channel: ch, projectId: pid } = CTX.get();

@@ -99,7 +99,8 @@ async def with_retry(
                 # All retries exhausted
                 final_detail = (
                     f"[{module}] All {max_retries} attempts failed. "
-                    f"Module frozen.\nLast error: {last_error}"
+                    f"Module frozen.\nLast error: {last_error}\n\n"
+                    f"Traceback (last attempt):\n{traceback.format_exc()}"
                 )
                 print(final_detail)
                 return error_result(module, final_detail, asset_id)

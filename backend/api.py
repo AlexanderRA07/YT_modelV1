@@ -124,6 +124,28 @@ async def all_topics(channel: str):
     store = _get_store(channel)
     return JSONResponse(store.get_all())
 
+@app.get("/api/channels/{channel}/niches")
+async def get_niches(channel: str):
+    """Return sorted list of unique niche values from topics.csv and performance-log."""
+    niches = set()
+
+    topics_path = Path(CHANNELS_DIR) / channel / "topics.csv"
+    if topics_path.exists():
+        store = TopicStore(str(topics_path))
+        for t in store.get_all():
+            if t.get("niche"):
+                niches.add(t["niche"].strip())
+
+    perf_path = Path(CHANNELS_DIR) / channel / "performance-log.csv"
+    if perf_path.exists():
+        import csv
+        with open(perf_path, newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                if row.get("niche"):
+                    niches.add(row["niche"].strip())
+
+    return {"niches": sorted(niches)}
+
 
 # ==============================================================
 # Project list routes
@@ -268,6 +290,17 @@ async def add_asset(channel: str, project_id: str, req: AddAssetRequest):
     asyncio.create_task(pipeline.add_manual_asset(req.asset_type, req.prompt))
     return JSONResponse({"status": "dispatched"})
 
+@app.post("/api/projects/{channel}/{project_id}/resume")
+async def resume_project(channel: str, project_id: str):
+    """Re-dispatch any assets stuck in pending state after a server restart."""
+    pipeline = Pipeline(channel, project_id)
+    ps = pipeline._load()
+    requeued = 0
+    for asset in ps.get("assets") or []:
+        if asset["state"] in ("pending", "generating"):
+            ps.update_asset(asset["asset_id"], state="waiting")
+            requeued += 1
+    return {"requeued": requeued}
 
 # ==============================================================
 # Project state route (for UI restore)

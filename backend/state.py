@@ -219,13 +219,14 @@ class ProjectState:
         self._state["queue_position"] = queue_position
         self._save()
 
-    def update_script(self, draft: str = None, final: str = None,
-                      tags: list = None, shot_list: list = None):
+    def update_script(self, draft: str = None, final: str = None, tags: list = None, shot_list: list = None, description: str = None, credits: str = None):
         """Update any combination of script fields and auto-save."""
-        if draft     is not None: self._state["script"]["draft"]     = draft
-        if final     is not None: self._state["script"]["final"]     = final
-        if tags      is not None: self._state["script"]["tags"]      = tags
-        if shot_list is not None: self._state["script"]["shot_list"] = shot_list
+        if draft       is not None: self._state["script"]["draft"]       = draft
+        if final       is not None: self._state["script"]["final"]       = final
+        if tags        is not None: self._state["script"]["tags"]        = tags
+        if shot_list   is not None: self._state["script"]["shot_list"]   = shot_list
+        if description is not None: self._state["script"]["description"] = description
+        if credits     is not None: self._state["script"]["credits"]     = credits
         self._save()
 
     # ----------------------------------------------------------

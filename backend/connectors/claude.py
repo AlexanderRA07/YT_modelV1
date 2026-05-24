@@ -9,7 +9,7 @@ from anthropic import AsyncAnthropic
 
 client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-MODEL = "claude-sonnet-4-20250514"
+MODEL = "claude-sonnet-4-6"
 
 # --------------------------------------------------------------
 # Format guidance injected into the prompt
@@ -66,35 +66,67 @@ Write a complete video script following these rules exactly:
 4. PACING: Write to be spoken aloud. Short sentences. Vary rhythm.
    Read it back mentally -- if it sounds like an essay, rewrite it.
 
-5. TAGS: At the very end of the script, after a line containing only
-   "---TAGS---", list 15-20 relevant YouTube search tags separated by commas.
+5. TAGS: After the script, after a line containing only \"---TAGS---\",
+   list 15-20 YouTube search tags separated by commas.
+   Mix broad category terms (e.g. \"star wars\", \"space facts\") with
+   mid-level topic terms (e.g. \"darth vader lore\") and specific detail
+   terms (e.g. \"mustafar duel\"). Always include the broadest 3-5 terms
+   a casual viewer would search, not just deep-dive specifics.
+
+6. DESCRIPTION: After the tags, after a line containing only \"---DESCRIPTION---\",
+   write a 3-4 sentence YouTube video description. Engaging, informative,
+   ends with a call to action. No hashtags — those come from the tags.
+
+7. CREDITS: After the description, after a line containing only "---CREDITS---",
+   list only sources you actually retrieved via web search during this generation.
+   Format each as: Label | URL
+   
+   Search strategy:
+   - First search for the topic directly
+   - If results are thin or unreliable, search for "[topic] wiki" and
+     "[topic] fandom wiki" — fan wikis (fandom.com, wikia.com) are valid
+     and often the best source for game/fictional lore topics
+   - Only credit URLs you actually retrieved and read during this generation
+   - Only credit URLs returned by your web search tool during this session.
+     A valid credit has a URL you navigated to and read. If you cannot point
+     to a specific retrieved page, omit that credit entirely.
+   - If you found nothing credible via search, write: ¯\_(ツ)_/¯
 
 EXAMPLE FORMAT:
 [VISUAL: wide shot of a dark forest at night, watercolor style]
-Deep in the oldest forests on Earth, something is watching. Not an animal.
-Not a person. Something much older.
-
-[VISUAL: close-up of ancient tree roots tangling underground]
-These trees are communicating right now -- through a network of fungal threads
-stretching for miles beneath your feet.
+Deep in the oldest forests on Earth, something is watching.
 
 ---TAGS---
-forest communication, mycorrhizal network, trees talk, plant intelligence, nature documentary
+nature documentary, forest facts, mycorrhizal network, trees communicate, plant intelligence, fungi network, forest science, biology explained, nature science, how forests work
+
+---DESCRIPTION---
+Beneath every forest floor lies a hidden internet — a vast network of fungal threads connecting trees across miles. In this video, we explore how trees communicate, share resources, and even warn each other of danger. The science is stranger than fiction. Like and subscribe for more nature deep-dives.
+
+---CREDITS---
+Simard, S. (2021) Finding the Mother Tree | https://www.hachettebooks.com/titles/suzanne-simard/finding-the-mother-tree/9780525656098/
+BBC Earth documentary series | https://www.bbc.co.uk/earth
 
 Now write the full script for: {title}"""
 
     message = await client.messages.create(
         model=MODEL,
         max_tokens=4096,
+        tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
         messages=[{"role": "user", "content": prompt}]
     )
-
-    raw = message.content[0].text
-    script_text, tags = _parse_script(raw)
+    
+    raw = ""
+    for block in message.content:
+        if hasattr(block, "text"):
+            raw += block.text
+    
+    script_text, tags, description, credits = _parse_script(raw)
 
     return {
-        "script": script_text,
-        "tags":   tags
+        "script":      script_text,
+        "tags":        tags,
+        "description": description,
+        "credits":     credits
     }
 
 
@@ -180,15 +212,31 @@ def save_style_diff(channel_dir: str, project_id: str,
 # Internal helpers
 # ==============================================================
 
-def _parse_script(raw: str) -> tuple[str, list]:
-    """Split raw Claude output into script text and tags list."""
-    if "---TAGS---" in raw:
-        parts = raw.split("---TAGS---", 1)
-        script_text = parts[0].strip()
-        tags_raw = parts[1].strip()
+def _parse_script(raw: str) -> tuple[str, list, str, str]:
+    """Split raw Claude output into script, tags, description, credits."""
+    script_text  = raw.strip()
+    tags         = []
+    description  = ""
+    credits      = ""
+
+    if "---TAGS---" in script_text:
+        script_text, remainder = script_text.split("---TAGS---", 1)
+        script_text = script_text.strip()
+    else:
+        remainder = ""
+
+    if "---DESCRIPTION---" in remainder:
+        tags_raw, remainder = remainder.split("---DESCRIPTION---", 1)
         tags = [t.strip() for t in tags_raw.split(",") if t.strip()]
     else:
-        script_text = raw.strip()
-        tags = []
+        tags = [t.strip() for t in remainder.split(",") if t.strip()]
+        remainder = ""
 
-    return script_text, tags
+    if "---CREDITS---" in remainder:
+        description, credits = remainder.split("---CREDITS---", 1)
+        description = description.strip()
+        credits     = credits.strip()
+    else:
+        description = remainder.strip()
+
+    return script_text, tags, description, credits

@@ -214,9 +214,11 @@ class Pipeline:
         )
 
         if result["ok"]:
-            draft = result["data"]["script"]
-            tags  = result["data"].get("tags", [])
-            ps.update_script(draft=draft, tags=tags)
+            draft       = result["data"]["script"]
+            tags        = result["data"].get("tags", [])
+            description = result["data"].get("description", "")
+            credits     = result["data"].get("credits", "")
+            ps.update_script(draft=draft, tags=tags, description=description, credits=credits)
             await worker.post(status_msg("Script ready for review."))
         else:
             ps.add_error("claude", result["error"]["detail"])
