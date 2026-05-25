@@ -4,6 +4,7 @@
 # Calls the ComfyUI API over localhost.
 # ==============================================================
 
+import random
 import os
 import uuid
 import asyncio
@@ -152,7 +153,7 @@ def _build_workflow(prompt: str) -> dict:
         },
         "25": {
             "inputs": {
-                "noise_seed": 42
+                "noise_seed": random.randint(0, 2**32 - 1)
             },
             "class_type": "RandomNoise"
         },
