@@ -336,15 +336,43 @@
       list.innerHTML = '<div class="empty-state"><span class="empty-state-icon">○</span><div class="empty-state-text">Waiting for assets...</div></div>';
       return;
     }
-    list.innerHTML = assets.map(a => `
+
+    // Show "Retry All Failed" button if any errors exist
+    const errorAssets = assets.filter(a => a.state === 'error');
+    const retryAllBtn = errorAssets.length > 1
+      ? `<div style="margin-bottom:0.75rem;">
+          <button class="btn btn-secondary" onclick="retryAllFailed()">
+            ↺ Retry All Failed (${errorAssets.length})
+          </button>
+        </div>`
+      : '';
+
+    const canEditPrompt = (type) => !['animation','voice'].includes(type);
+
+    list.innerHTML = retryAllBtn + assets.map(a => `
       <div class="asset-row is-${a.state}" id="asset-row-${a.asset_id}">
         <div class="asset-num">#${a.asset_id}</div>
         <div class="asset-info">
           <div class="asset-type-label">${TYPE_LABELS[a.type] || a.type}</div>
           <div class="asset-name">${a.filename || '—'}</div>
-          <div class="asset-prompt-preview">${a.prompt || ''}</div>
+          ${a.state === 'error' && canEditPrompt(a.type) ? `
+            <div style="margin-top:0.4rem;">
+              <textarea id="inline-prompt-${a.asset_id}"
+                style="width:100%;min-height:60px;font-size:0.75rem;
+                      background:var(--surface-2);border:1px solid var(--border);
+                      color:var(--text-1);border-radius:4px;padding:0.4rem;
+                      resize:vertical;"
+              >${a.prompt || ''}</textarea>
+            </div>
+          ` : `<div class="asset-prompt-preview">${a.prompt || ''}</div>`}
         </div>
-        <div>${stateBadge(a.state)}</div>
+        <div style="display:flex;flex-direction:column;gap:0.4rem;align-items:flex-end;">
+          ${stateBadge(a.state)}
+          ${a.state === 'error' ? `
+            <button class="btn btn-secondary" style="font-size:0.7rem;padding:3px 8px;"
+              onclick="retryAssetInline(${a.asset_id}, '${a.type}')">↺ Retry</button>
+          ` : ''}
+        </div>
       </div>
     `).join('');
   }
@@ -375,7 +403,7 @@
 
       <div class="section-label">Prompt</div>
       <div class="review-prompt-box" id="review-prompt-static">${asset.prompt || '—'}</div>
-      <div class="review-prompt-edit" id="review-prompt-edit-wrap">
+      <div class="review-prompt-edit hidden" id="review-prompt-edit-wrap">
         <textarea id="review-prompt-edit" style="min-height:80px;">${asset.prompt || ''}</textarea>
       </div>
 
@@ -388,7 +416,10 @@
           <button class="btn btn-secondary" onclick="togglePromptEdit(${asset.asset_id})">✎ Edit &amp; Retry</button>
           <button class="btn btn-danger" onclick="rejectAsset(${asset.asset_id})">✕ Reject</button>
         ` : `
-          <button class="btn btn-secondary" onclick="retryAsset(${asset.asset_id})">↺ Try Again</button>
+          ${!['animation','voice'].includes(asset.type) ? `
+            <button class="btn btn-secondary" onclick="togglePromptEdit(${asset.asset_id})">✎ Edit &amp; Retry</button>
+          ` : ''}
+          <button class="btn btn-secondary" onclick="retryAsset(${asset.asset_id})">↺ Retry As-Is</button>
           <button class="btn btn-ghost" onclick="freezeAsset(${asset.asset_id})">❄ Freeze</button>
           <button class="btn btn-danger" onclick="rejectAsset(${asset.asset_id})">✕ Reject</button>
         `}
@@ -400,6 +431,27 @@
 
   // ── Asset actions ───────────────────────────────────────────
   const { channel: ch, projectId: pid } = CTX.get();
+
+  async function retryAssetInline(id, type) {
+    const canEdit = !['animation', 'voice'].includes(type);
+    let newPrompt = null;
+    if (canEdit) {
+      const ta = document.getElementById(`inline-prompt-${id}`);
+      if (ta) newPrompt = ta.value.trim() || null;
+    }
+    await API.post(`/api/projects/${ch}/${pid}/assets/${id}/retry`, { new_prompt: newPrompt });
+    toast(`Asset #${id} retrying`, 'warn');
+  }
+
+  async function retryAllFailed() {
+    if (!projectState) return;
+    const errors = (projectState.assets || []).filter(a => a.state === 'error');
+    for (const a of errors) {
+      await API.post(`/api/projects/${ch}/${pid}/assets/${a.asset_id}/retry`,
+        { new_prompt: null });
+    }
+    toast(`Retrying ${errors.length} failed assets`, 'warn');
+  }
 
   async function approveAsset(id) {
     await API.post(`/api/projects/${ch}/${pid}/assets/${id}/approve`);
@@ -434,13 +486,15 @@
   function togglePromptEdit(id) {
     const staticEl = document.getElementById('review-prompt-static');
     const editWrap = document.getElementById('review-prompt-edit-wrap');
+    const btn      = document.querySelector(`[onclick="togglePromptEdit(${id})"]`);
     const isEditing = !editWrap.classList.contains('hidden');
+
     if (isEditing) {
       retryAsset(id);
     } else {
       staticEl.style.display = 'none';
-      editWrap.style.display = 'block';
       editWrap.classList.remove('hidden');
+      if (btn) btn.textContent = '✎ Submit & Retry';
     }
   }
 

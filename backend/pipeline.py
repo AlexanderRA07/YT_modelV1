@@ -305,7 +305,7 @@ class Pipeline:
         connector_fn = self._get_connector(asset_type)
 
         async def call():
-            return await connector_fn(prompt=prompt, asset_id=asset_id)
+            return await connector_fn(prompt=prompt, asset_id=asset_id, output_dir=assets_dir)
 
         async def on_retry(attempt: int, err: str):
             await worker.post(retry_notice_msg(asset_id, asset_type, attempt, err))

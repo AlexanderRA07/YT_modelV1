@@ -86,7 +86,7 @@ def _build_workflow(prompt: str) -> dict:
         "6": {
             "inputs": {
                 "text": _style_wrap(prompt),
-                "clip": ["30", 1]
+                "clip": ["11", 0]
             },
             "class_type": "CLIPTextEncode"
         },
@@ -112,7 +112,7 @@ def _build_workflow(prompt: str) -> dict:
         },
         "11": {
             "inputs": {
-                "clip_name1": "t5xxl_fp16.safetensors",
+                "clip_name1": "t5xxl_fp8_e4m3fn.safetensors",
                 "clip_name2": "clip_l.safetensors",
                 "type": "flux"
             },
@@ -166,7 +166,7 @@ def _build_workflow(prompt: str) -> dict:
         },
         "30": {
             "inputs": {
-                "unet_name": "flux1-dev.safetensors",
+                "unet_name": "flux1-dev/flux1-dev.safetensors",
                 "weight_dtype": "fp8_e4m3fn"
             },
             "class_type": "UNETLoader"

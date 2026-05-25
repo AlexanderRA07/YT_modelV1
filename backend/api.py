@@ -215,14 +215,16 @@ class ApproveScriptRequest(BaseModel):
 
 @app.post("/api/projects/{channel}/{project_id}/script/approve")
 async def approve_script(channel: str, project_id: str,
-                          req: ApproveScriptRequest):
+                         req: ApproveScriptRequest):
     """Approve the final script and kick off asset generation."""
     import asyncio
+    from backend.connectors.claude import extract_shot_list as _extract_shots
+    shot_list = await _extract_shots(req.final_script)
     pipeline = Pipeline(channel, project_id)
     asyncio.create_task(pipeline.approve_script(
         final_script=req.final_script,
         tags=req.tags,
-        shot_list=req.shot_list,
+        shot_list=shot_list,
         full_approve=req.full_approve
     ))
     return JSONResponse({"status": "approved"})
