@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Log New — Pipeline</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .lognew-layout {
+      display: flex;
+      gap: 1.5rem;
+      align-items: flex-start;
+      margin-top: 1.5rem;
+    }
+    .lognew-sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .lognew-form-panel {
+      flex: 1;
+      min-width: 0;
+    }
+    .sidebar-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-top: 0.6rem;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+    .sidebar-item {
+      padding: 0.6rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      background: var(--bg-3);
+      transition: all var(--transition);
+    }
+    .sidebar-item:hover { border-color: var(--border-hi); background: var(--bg-4); }
+    .sidebar-item.active { border-color: var(--accent); background: rgba(200,240,96,0.05); }
+    .sidebar-item-name { font-size: 0.85rem; font-weight: 500; }
+    .sidebar-item-meta { font-size: 0.7rem; color: var(--text-2); margin-top: 0.15rem; }
+    .sidebar-empty { font-size: 0.78rem; color: var(--text-3); padding: 0.4rem 0; }
+    .mode-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .mode-label {
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-3);
+    }
+    .mode-value {
+      font-size: 0.8rem;
+      color: var(--accent);
+    }
+    .form-actions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 1.5rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+    .required-star { color: var(--red); margin-left: 0.2rem; }
+    @media (max-width: 750px) {
+      .lognew-layout { flex-direction: column; }
+      .lognew-sidebar { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+
+  <header class="topbar">
+    <div class="topbar-logo">PIPELINE<span>/v1</span></div>
+    <a href="/" class="btn btn-ghost" style="font-size:0.75rem;">← Home</a>
+    <div class="topbar-sep"></div>
+    <div class="topbar-status">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-label">connecting</span>
+    </div>
+  </header>
+
+  <main class="page-content">
+    <h1 class="page-title">Log New</h1>
+    <p class="page-subtitle">Create, draft, or edit CSV topic entries.</p>
+
+    <!-- Channel selector -->
+    <div class="card" style="max-width:340px;">
+      <div class="section-label">Channel</div>
+      <select id="channel-select">
+        <option value="">Loading...</option>
+      </select>
+    </div>
+
+    <div class="lognew-layout">
+
+      <!-- Sidebar -->
+      <div class="lognew-sidebar">
+
+        <button class="btn btn-secondary" onclick="setModeNew()" style="width:100%;">＋ New Entry</button>
+
+        <div class="card" style="padding:1rem;">
+          <div class="section-label" style="margin-bottom:0;">Drafts <span id="draft-count" style="color:var(--text-3);font-size:0.7rem;"></span></div>
+          <div class="sidebar-list" id="draft-list">
+            <span class="sidebar-empty">None</span>
+          </div>
+        </div>
+
+        <div class="card" style="padding:1rem;">
+          <div class="section-label" style="margin-bottom:0;">CSV Entries <span id="topic-count" style="color:var(--text-3);font-size:0.7rem;"></span></div>
+          <div class="sidebar-list" id="topic-list">
+            <span class="sidebar-empty">None</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Form panel -->
+      <div class="lognew-form-panel">
+        <div class="card">
+
+          <div class="mode-bar">
+            <span class="mode-label">Mode</span>
+            <span class="mode-value" id="mode-label">New Entry</span>
+          </div>
+
+          <div class="form-group">
+            <label>Name <span class="required-star">*</span></label>
+            <input type="text" id="f-name" placeholder="e.g. The Tarasque" />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Niche <span class="required-star">*</span></label>
+              <input type="text" id="f-niche" placeholder="e.g. mythology" />
+            </div>
+            <div class="form-group">
+              <label>Format</label>
+              <select id="f-format">
+                <option value="">— unset —</option>
+                <option value="1min">1 min</option>
+                <option value="2min">2 min</option>
+                <option value="10min">10 min</option>
+                <option value="15min">15 min</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Description <span class="required-star">*</span></label>
+            <textarea id="f-description" rows="4" placeholder="What is this video about? What angle or tone?"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>References <span style="color:var(--text-3);font-weight:400;text-transform:none;letter-spacing:0;">(semicolon-separated URLs)</span></label>
+            <textarea id="f-references" rows="2" placeholder="https://en.wikipedia.org/wiki/... ; https://..."></textarea>
+          </div>
+
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Concepts <span style="color:var(--text-3);font-weight:400;text-transform:none;letter-spacing:0;">(optional creative directions)</span></label>
+            <textarea id="f-concepts" rows="2" placeholder="e.g. focus on the medieval French accounts, open with a village scene"></textarea>
+          </div>
+
+          <div class="form-actions" id="form-actions">
+            <!-- populated by renderActions() -->
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<div id="toast-container"></div>
+<script src="/static/app.js"></script>
+<script>
+  // ── State ────────────────────────────────────────────────────
+  let channel = null;
+  let mode = 'new';       // 'new' | 'draft' | 'edit'
+  let activeDraftId = null;
+  let activeTopicId = null;
+  let drafts = [];
+  let topics = [];
+
+  // ── Boot ─────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', async () => {
+    await loadChannels();
+  });
+
+  async function loadChannels() {
+    const channels = await API.get('/api/channels');
+    const sel = document.getElementById('channel-select');
+    if (!channels.length) { sel.innerHTML = '<option value="">No channels</option>'; return; }
+    sel.innerHTML = channels.map(c => `<option value="${c}">${c}</option>`).join('');
+    channel = channels[0];
+    sel.addEventListener('change', e => { channel = e.target.value; refresh(); setModeNew(); });
+    await refresh();
+    setModeNew();
+  }
+
+  async function refresh() {
+    await Promise.all([loadDrafts(), loadTopics()]);
+  }
+
+  async function loadDrafts() {
+    try {
+      drafts = await API.get(`/api/channels/${channel}/drafts`);
+    } catch(e) { drafts = []; }
+    renderDraftList();
+  }
+
+  async function loadTopics() {
+    try {
+      topics = await API.get(`/api/channels/${channel}/topics/available`);
+    } catch(e) { topics = []; }
+    renderTopicList();
+  }
+
+  // ── Sidebar renders ──────────────────────────────────────────
+  function renderDraftList() {
+    const el = document.getElementById('draft-list');
+    document.getElementById('draft-count').textContent = drafts.length ? `(${drafts.length})` : '';
+    if (!drafts.length) { el.innerHTML = '<span class="sidebar-empty">None</span>'; return; }
+    el.innerHTML = drafts.map(d => `
+      <div class="sidebar-item ${activeDraftId === d.draft_id ? 'active' : ''}"
+           onclick="loadDraft('${d.draft_id}')">
+        <div class="sidebar-item-name">${escHtml(d.name || 'Untitled draft')}</div>
+        <div class="sidebar-item-meta">updated ${escHtml(d.updated_at)}</div>
+      </div>
+    `).join('');
+  }
+
+  function renderTopicList() {
+    const el = document.getElementById('topic-list');
+    document.getElementById('topic-count').textContent = topics.length ? `(${topics.length})` : '';
+    if (!topics.length) { el.innerHTML = '<span class="sidebar-empty">None</span>'; return; }
+    el.innerHTML = topics.map(t => `
+      <div class="sidebar-item ${activeTopicId == t.id ? 'active' : ''}"
+           onclick="loadTopic(${t.id})">
+        <div class="sidebar-item-name">${escHtml(t.name)}</div>
+        <div class="sidebar-item-meta">${escHtml(t.niche)}${t.format ? ' · ' + escHtml(t.format) : ''}</div>
+      </div>
+    `).join('');
+  }
+
+  // ── Mode transitions ─────────────────────────────────────────
+  function setModeNew() {
+    mode = 'new';
+    activeDraftId = null;
+    activeTopicId = null;
+    clearForm();
+    renderDraftList();
+    renderTopicList();
+    document.getElementById('mode-label').textContent = 'New Entry';
+    renderActions();
+  }
+
+  function loadDraft(draftId) {
+    const d = drafts.find(x => x.draft_id === draftId);
+    if (!d) return;
+    mode = 'draft';
+    activeDraftId = draftId;
+    activeTopicId = null;
+    fillForm(d);
+    renderDraftList();
+    renderTopicList();
+    document.getElementById('mode-label').textContent = `Draft — ${d.name || 'Untitled'}`;
+    renderActions();
+  }
+
+  function loadTopic(topicId) {
+    const t = topics.find(x => x.id == topicId);
+    if (!t) return;
+    mode = 'edit';
+    activeTopicId = topicId;
+    activeDraftId = null;
+    fillForm(t);
+    renderDraftList();
+    renderTopicList();
+    document.getElementById('mode-label').textContent = `Editing — ${t.name}`;
+    renderActions();
+  }
+
+  // ── Form helpers ─────────────────────────────────────────────
+  function clearForm() {
+    ['f-name','f-niche','f-description','f-references','f-concepts'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('f-format').value = '';
+  }
+
+  function fillForm(data) {
+    document.getElementById('f-name').value        = data.name        || '';
+    document.getElementById('f-niche').value       = data.niche       || '';
+    document.getElementById('f-description').value = data.description || '';
+    document.getElementById('f-format').value      = data.format      || '';
+    document.getElementById('f-references').value  = data.references  || '';
+    document.getElementById('f-concepts').value    = data.concepts    || '';
+  }
+
+  function readForm() {
+    return {
+      name:        document.getElementById('f-name').value.trim(),
+      niche:       document.getElementById('f-niche').value.trim(),
+      description: document.getElementById('f-description').value.trim(),
+      format:      document.getElementById('f-format').value,
+      references:  document.getElementById('f-references').value.trim(),
+      concepts:    document.getElementById('f-concepts').value.trim(),
+    };
+  }
+
+  // ── Action buttons ───────────────────────────────────────────
+  function renderActions() {
+    const el = document.getElementById('form-actions');
+    if (mode === 'new') {
+      el.innerHTML = `
+        <button class="btn btn-secondary" onclick="actionPause()">Pause</button>
+        <button class="btn btn-primary" onclick="actionSubmit()">Submit to CSV</button>
+      `;
+    } else if (mode === 'draft') {
+      el.innerHTML = `
+        <button class="btn btn-secondary" onclick="actionPause()">Save Draft</button>
+        <button class="btn btn-primary" onclick="actionSubmit()">Submit to CSV</button>
+        <button class="btn btn-ghost" style="margin-left:auto;color:var(--red);" onclick="actionDiscard()">Discard Draft</button>
+      `;
+    } else if (mode === 'edit') {
+      el.innerHTML = `
+        <button class="btn btn-primary" onclick="actionSaveEdit()">Save Changes</button>
+        <button class="btn btn-ghost" onclick="setModeNew()">Cancel</button>
+      `;
+    }
+  }
+
+  // ── Actions ──────────────────────────────────────────────────
+  async function actionPause() {
+    const data = readForm();
+    try {
+      if (mode === 'new') {
+        const draft = await API.post(`/api/channels/${channel}/drafts`, data);
+        activeDraftId = draft.draft_id;
+        mode = 'draft';
+        document.getElementById('mode-label').textContent = `Draft — ${draft.name || 'Untitled'}`;
+        renderActions();
+        toast('Draft saved', 'success');
+      } else if (mode === 'draft') {
+        await API.put(`/api/channels/${channel}/drafts/${activeDraftId}`, data);
+        toast('Draft updated', 'success');
+      }
+      await loadDrafts();
+    } catch(e) {
+      toast('Could not save draft', 'error');
+    }
+  }
+
+  async function actionSubmit() {
+    const data = readForm();
+    const missing = ['name','niche','description'].filter(f => !data[f]);
+    if (missing.length) {
+      toast(`Required: ${missing.join(', ')}`, 'warn');
+      return;
+    }
+    try {
+      let topic;
+      if (mode === 'new') {
+        // create a draft then immediately submit it
+        const draft = await API.post(`/api/channels/${channel}/drafts`, data);
+        topic = await API.post(`/api/channels/${channel}/drafts/${draft.draft_id}/submit`, {});
+      } else if (mode === 'draft') {
+        await API.put(`/api/channels/${channel}/drafts/${activeDraftId}`, data);
+        topic = await API.post(`/api/channels/${channel}/drafts/${activeDraftId}/submit`, {});
+      }
+      toast(`"${topic.name}" added to CSV`, 'success');
+      setModeNew();
+      await refresh();
+    } catch(e) {
+      const msg = e?.detail || 'Submit failed';
+      toast(msg, 'error');
+    }
+  }
+
+  async function actionSaveEdit() {
+    const data = readForm();
+    const missing = ['name','niche','description'].filter(f => !data[f]);
+    if (missing.length) {
+      toast(`Required: ${missing.join(', ')}`, 'warn');
+      return;
+    }
+    try {
+      await API.patch(`/api/channels/${channel}/topics/${activeTopicId}`, data);
+      toast('Topic updated', 'success');
+      await loadTopics();
+      renderTopicList();
+    } catch(e) {
+      toast('Save failed', 'error');
+    }
+  }
+
+  async function actionDiscard() {
+    if (!confirm('Permanently discard this draft?')) return;
+    try {
+      await API.delete(`/api/channels/${channel}/drafts/${activeDraftId}`);
+      toast('Draft discarded', 'success');
+      setModeNew();
+      await loadDrafts();
+    } catch(e) {
+      toast('Could not discard draft', 'error');
+    }
+  }
+
+  function escHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c =>
+      ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+</script>
+</body>
+</html>

@@ -58,7 +58,9 @@ class AppPage:
 # --------------------------------------------------------------
 def default_project_state(project_id: str, title: str, niche: str,
                            description: str, format: str,
-                           channel: str) -> dict:
+                           channel: str,
+                           references: str = "", concepts: str = "",
+                           topic_id: Optional[int] = None) -> dict:
     return {
         # --- Identity ---
         "project_id":   project_id,
@@ -66,6 +68,9 @@ def default_project_state(project_id: str, title: str, niche: str,
         "niche":        niche,
         "description":  description,
         "format":       format,        # "1min" | "2min" | "10min" | "15min"
+        "references":   references,    # semicolon-separated source URLs from CSV
+        "concepts":     concepts,      # creative directions from CSV
+        "topic_id":     topic_id,      # CSV topic id this project was spawned from, or None
         "channel":      channel,
         "created_at":   datetime.now().isoformat(),
         "updated_at":   datetime.now().isoformat(),
@@ -175,11 +180,14 @@ class ProjectState:
     @classmethod
     def create(cls, project_dir: str, project_id: str, title: str,
                niche: str, description: str, format: str,
-               channel: str) -> "ProjectState":
+               channel: str, references: str = "",
+               concepts: str = "",
+               topic_id: Optional[int] = None) -> "ProjectState":
         """Create a new project state and immediately save it."""
         os.makedirs(project_dir, exist_ok=True)
         state = default_project_state(
-            project_id, title, niche, description, format, channel
+            project_id, title, niche, description, format, channel,
+            references, concepts, topic_id
         )
         ps = cls(project_dir, state)
         ps._save()

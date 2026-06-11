@@ -40,3 +40,8 @@ google-auth-oauthlib
 # Utilities
 aiofiles
 python-multipart
+
+# Testing
+pytest
+pytest-asyncio
+httpx   # also used by TestClient

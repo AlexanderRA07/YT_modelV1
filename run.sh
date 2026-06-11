@@ -4,6 +4,7 @@ gnome-terminal --tab -- bash -c "cd ~/Agents/ComfyUI && source .venv/bin/activat
 
 # NOTE: if you build a headless auto-run script in the future,
 # add a sleep here to let ComfyUI bind to 8188 before dispatching jobs
+sleep 1.5
 
 # Start the pipeline
 source .venv/bin/activate

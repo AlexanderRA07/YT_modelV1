@@ -27,7 +27,8 @@ FORMAT_GUIDANCE = {
 # ==============================================================
 
 async def generate_script(title: str, description: str, niche: str,
-                           format: str, style_guide: str = "") -> dict:
+                           format: str, style_guide: str = "",
+                           references: str = "", concepts: str = "") -> dict:
     """
     Generate a full video script using Claude.
 
@@ -40,12 +41,24 @@ async def generate_script(title: str, description: str, niche: str,
     format_note = FORMAT_GUIDANCE.get(format, "")
     style_section = f"\n\nCHANNEL STYLE GUIDE:\n{style_guide}" if style_guide.strip() else ""
 
+    # Build optional sections from CSV fields
+    ref_urls = [r.strip() for r in references.split(";") if r.strip()] if references.strip() else []
+    refs_section = (
+        "\n\nREFERENCE SOURCES (search these URLs and draw from them):\n"
+        + "\n".join(f"- {r}" for r in ref_urls)
+    ) if ref_urls else ""
+
+    concepts_section = (
+        f"\n\nCREATIVE CONCEPTS & ANGLES:\n{concepts.strip()}\n"
+        "Incorporate these ideas, angles, or structural notes into the script."
+    ) if concepts.strip() else ""
+
     prompt = f"""You are writing a script for a {niche} YouTube video.
 
 TITLE: {title}
 DESCRIPTION: {description}
 FORMAT: {format} video. {format_note}
-{style_section}
+{style_section}{refs_section}{concepts_section}
 
 INSTRUCTIONS:
 Write a complete video script following these rules exactly:
@@ -54,6 +67,18 @@ Write a complete video script following these rules exactly:
    with a visual cue marker on its own line in this exact format:
    [VISUAL: brief description of the image/scene to generate]
    Followed immediately by the spoken narration for that scene.
+
+   Each VISUAL description must be a concrete description of exactly what is
+   visible in the frame. Include subject, setting, lighting, and camera angle.
+   Never use abstract or emotional language.
+   If the image depicts a named character, name that character and describe his/her characteristics.
+   If the character is obscure, also describe their appearance (hair, clothing, build) rather than relying on the name alone.
+   Bad:  "a tense confrontation between two enemies"
+   Good: "two cloaked figures facing each other in a torchlit stone corridor, low camera angle, deep shadows, dust particles in the air"
+   Bad: "an unlikely hero sneaks up on a dragon"
+   Good: "Bilbo Baggins, small and wide-eyed in his travelling cloak, creeping
+      along a ledge above Smaug the golden dragon coiled on a vast pile of
+      treasure, warm firelight from below, high angle shot"
 
 2. TONE: Informative, engaging, and conversational. Write as if speaking
    directly to a curious viewer. Avoid filler phrases, excessive adjectives,

@@ -28,6 +28,9 @@ FIELDNAMES = [
     "name",
     "niche",
     "description",
+    "format",           # pre-set target length: 1min | 2min | 10min | 15min (optional)
+    "references",       # semicolon-separated source URLs for script research
+    "concepts",         # free-text creative directions / angles to incorporate
     "status",
     "video_url",
     "date_added",
@@ -126,7 +129,9 @@ class TopicStore:
     # ----------------------------------------------------------
     # Write operations
     # ----------------------------------------------------------
-    def add_topic(self, name: str, niche: str, description: str) -> dict:
+    def add_topic(self, name: str, niche: str, description: str,
+                  format: str = "", references: str = "",
+                  concepts: str = "") -> dict:
         """
         Add a new topic with status 'idea' and today's date.
         Returns the new topic dict.
@@ -137,6 +142,9 @@ class TopicStore:
             "name":           name,
             "niche":          niche,
             "description":    description,
+            "format":         format,
+            "references":     references,
+            "concepts":       concepts,
             "status":         TopicStatus.IDEA,
             "video_url":      "",
             "date_added":     datetime.now().strftime("%Y-%m-%d"),
@@ -145,6 +153,23 @@ class TopicStore:
         rows.append(new_row)
         self._write_all(rows)
         return new_row
+
+    def update_topic(self, topic_id: int, **kwargs) -> dict | None:
+        """
+        Update editable fields on a topic by id.
+        Allowed fields: name, niche, description, format, references, concepts.
+        Returns the updated row or None if not found.
+        """
+        editable = {"name", "niche", "description", "format", "references", "concepts"}
+        rows = self._read_all()
+        for row in rows:
+            if int(row["id"]) == topic_id:
+                for key, val in kwargs.items():
+                    if key in editable:
+                        row[key] = val
+                self._write_all(rows)
+                return row
+        return None
 
     def update_status(self, topic_id: int, status: str,
                       video_url: str = None):

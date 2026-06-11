@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Delete Project — Pipeline</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <header class="topbar">
+    <div class="topbar-logo">PIPELINE<span>/v1</span></div>
+    <a href="/" class="btn btn-ghost" style="font-size:0.75rem;">← Home</a>
+    <div class="topbar-sep"></div>
+    <div class="topbar-status">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-label">connecting</span>
+    </div>
+  </header>
+
+  <main class="page-content">
+    <h1 class="page-title">Delete Project</h1>
+    <p class="page-subtitle">Permanently remove an in-progress project and all its assets.</p>
+
+    <div class="card mt-3" style="max-width:600px;">
+      <div class="section-label">In Production</div>
+      <div id="project-list" style="margin-top:0.75rem;">
+        <div class="empty-state"><span class="empty-state-icon">○</span><div class="empty-state-text">Loading...</div></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="toast-container"></div>
+<script src="/static/app.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', loadProjects);
+
+  async function loadProjects() {
+    try {
+      const projects = await API.get('/api/projects/in-production');
+      const list = document.getElementById('project-list');
+      if (!projects.length) {
+        list.innerHTML = '<div class="empty-state"><span class="empty-state-icon">○</span><div class="empty-state-text">No projects in production.</div></div>';
+        return;
+      }
+      list.innerHTML = projects.map(p => `
+        <div id="row-${escAttr(p.project_id)}" style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 0;border-bottom:1px solid var(--border);">
+          <div>
+            <div style="font-weight:600;font-size:0.9rem;">${escHtml(p.title)}</div>
+            <div style="font-size:0.75rem;color:var(--text-2);">${escHtml(p.channel)} · ${escHtml(p.format || '—')} · ${escHtml(p.niche || '—')}</div>
+          </div>
+          <button class="btn btn-sm btn-danger" onclick="deleteProject('${escAttr(p.channel)}','${escAttr(p.project_id)}',this)">Delete</button>
+        </div>
+      `).join('');
+    } catch(e) {
+      toast('Could not load projects', 'error');
+    }
+  }
+
+  async function deleteProject(channel, projectId, btn) {
+    if (!confirm(`Permanently delete "${projectId}"?\n\nAll assets and files will be removed. This cannot be undone.`)) return;
+    btn.disabled = true;
+    btn.textContent = '…';
+    try {
+      await API.delete(`/api/projects/${channel}/${projectId}`);
+      const row = document.getElementById(`row-${projectId}`);
+      if (row) row.remove();
+      toast('Project deleted', 'success');
+      const list = document.getElementById('project-list');
+      if (!list.querySelector('[id^="row-"]')) {
+        list.innerHTML = '<div class="empty-state"><span class="empty-state-icon">○</span><div class="empty-state-text">No projects in production.</div></div>';
+      }
+    } catch(e) {
+      toast('Delete failed', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Delete';
+    }
+  }
+
+  function escHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function escAttr(s) {
+    return String(s ?? '').replace(/[&"']/g, c => ({'&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+</script>
+</body>
+</html>

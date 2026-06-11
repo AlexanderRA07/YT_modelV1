@@ -135,7 +135,8 @@ class Pipeline:
     @classmethod
     def create(cls, channel: str, title: str, niche: str,
                description: str, format: str,
-               topic_id: Optional[int] = None) -> "Pipeline":
+               topic_id: Optional[int] = None,
+               references: str = "", concepts: str = "") -> "Pipeline":
         """
         Create a new project directory and state file.
         Marks the CSV topic as in_production if topic_id is provided.
@@ -163,7 +164,10 @@ class Pipeline:
             niche=niche,
             description=description,
             format=format,
-            channel=channel
+            channel=channel,
+            references=references,
+            concepts=concepts,
+            topic_id=topic_id
         )
 
         # Mark topic in CSV
@@ -202,7 +206,9 @@ class Pipeline:
                 description=ps.get("description"),
                 niche=ps.get("niche"),
                 format=ps.get("format"),
-                style_guide=style_guide
+                style_guide=style_guide,
+                references=ps.get("references") or "",
+                concepts=ps.get("concepts") or ""
             )
 
         result = await with_retry(
@@ -395,53 +401,48 @@ class Pipeline:
             )
 
         await self._check_compile_ready()
-
-    async def reject_asset(self, asset_id: int, note: str = ""):
-        """User rejected an asset. Move to trash."""
+        
+    async def _trash_asset_files(self, asset_id: int):
+        """Move an asset's files to trash without changing state or posting messages."""
         ps = self._load()
         asset = ps.get_asset(asset_id)
         if not asset:
             return
+        trash = self._get_trash()
+        assets_dir = _assets_dir(self.project_dir)
+        files_to_trash = []
+        if asset["filename"]:
+            files_to_trash.append(str(Path(assets_dir) / asset["filename"]))
+        prompt_file = str(Path(assets_dir) / _prompt_filename(asset_id, asset["type"]))
+        files_to_trash.append(prompt_file)
+        if files_to_trash:
+            trash.move_to_trash(*files_to_trash)
 
+    async def reject_asset(self, asset_id: int, note: str = ""):
+        """User rejected an asset. Update state, post message, then move to trash."""
+        ps = self._load()
+        asset = ps.get_asset(asset_id)
+        if not asset:
+            return
         ps.update_asset(asset_id, state=AssetState.REJECTED, notes=note)
         await worker.post(
             asset_state_msg(asset_id, asset["type"], AssetState.REJECTED)
         )
-
-        trash = self._get_trash()
-        assets_dir = _assets_dir(self.project_dir)
-        files_to_trash = []
-
-        if asset["filename"]:
-            files_to_trash.append(
-                str(Path(assets_dir) / asset["filename"])
-            )
-        prompt_file = str(
-            Path(assets_dir) / _prompt_filename(asset_id, asset["type"])
-        )
-        files_to_trash.append(prompt_file)
-
-        if files_to_trash:
-            trash.move_to_trash(*files_to_trash)
+        await self._trash_asset_files(asset_id)
 
     async def retry_asset(self, asset_id: int, new_prompt: Optional[str] = None):
         """
-        User rejected and wants to retry with the same or edited prompt.
-        Moves current files to trash, then dispatches a new generation.
+        Trash current files and re-dispatch generation.
+        State transitions (PENDING → REVIEW/ERROR) are handled entirely by
+        _generate_asset — this method only prepares the asset record.
         """
         ps = self._load()
         asset = ps.get_asset(asset_id)
         if not asset:
             return
-
-        # Move current to trash first
-        await self.reject_asset(asset_id)
-
-        # Use new prompt if provided, otherwise reuse original
+        await self._trash_asset_files(asset_id)
         prompt = new_prompt if new_prompt else asset["prompt"]
-        ps.update_asset(asset_id, state=AssetState.PENDING,
-                        prompt=prompt, filename=None, error_detail=None)
-
+        ps.update_asset(asset_id, prompt=prompt, filename=None, error_detail=None)
         asyncio.create_task(
             self._generate_asset(asset_id, asset["type"], prompt)
         )

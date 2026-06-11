@@ -33,10 +33,22 @@
     <!-- Main tiles -->
     <div class="home-grid">
 
-      <div class="home-tile" id="tile-new" onclick="startNew()">
+      <div class="home-tile home-tile-wide" id="tile-new" onclick="startNew()">
         <span class="tile-icon">＋</span>
         <div class="tile-title">Start New</div>
         <div class="tile-desc">Begin a new video project from a topic, manual entry, or CSV.</div>
+      </div>
+
+      <div class="home-tile" id="tile-log-new" onclick="goto('/log-new')">
+        <span class="tile-icon">📋</span>
+        <div class="tile-title">Log New</div>
+        <div class="tile-desc">Log a new topic to the channel CSV for future production.</div>
+      </div>
+
+      <div class="home-tile" id="tile-delete" onclick="goto('/delete')">
+        <span class="tile-icon">✕</span>
+        <div class="tile-title">Delete</div>
+        <div class="tile-desc">Permanently remove an in-progress project and all its assets.</div>
       </div>
 
       <div class="home-tile" id="tile-continue" onclick="goto('/dashboard')">
@@ -55,12 +67,18 @@
 
     </div>
 
-    <!-- Health status -->
+    <!-- Connector status -->
     <div class="card mt-3" id="health-card">
       <div class="section-label">Connector Status</div>
       <div id="health-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.5rem;margin-top:0.5rem;">
         <div class="stat-cell"><div class="stat-label">Loading...</div></div>
       </div>
+    </div>
+
+    <!-- In-production projects -->
+    <div class="card mt-3" id="in-production-panel" style="display:none;">
+      <div class="section-label">In Production</div>
+      <div id="in-production-list" style="margin-top:0.5rem;"></div>
     </div>
 
   </main>
@@ -73,8 +91,7 @@
 
   document.addEventListener('DOMContentLoaded', async () => {
     await loadChannels();
-    await loadCounts();
-    await loadHealth();
+    await Promise.all([loadCounts(), loadHealth()]);
   });
 
   async function loadChannels() {
@@ -110,7 +127,26 @@
       const tile = document.getElementById('tile-continue');
       if (!inProd.length) tile.classList.add('disabled');
       else tile.classList.remove('disabled');
+
+      renderInProductionList(inProd);
     } catch(e) {}
+  }
+
+  function renderInProductionList(projects) {
+    const panel = document.getElementById('in-production-panel');
+    const list  = document.getElementById('in-production-list');
+    if (!projects.length) { panel.style.display = 'none'; return; }
+    panel.style.display = '';
+    list.innerHTML = projects.map(p => `
+      <div style="padding:0.5rem 0;border-bottom:1px solid var(--border);">
+        <div style="font-weight:600;font-size:0.9rem;">${escHtml(p.title)}</div>
+        <div style="font-size:0.75rem;color:var(--text-2);">${escHtml(p.channel)} · ${escHtml(p.format || '—')} · ${escHtml(p.niche || '—')}</div>
+      </div>
+    `).join('');
+  }
+
+  function escHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
   async function loadHealth() {

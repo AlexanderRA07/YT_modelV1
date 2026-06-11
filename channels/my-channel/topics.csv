@@ -1,7 +1,11 @@
-id,name,niche,description,status,video_url,date_added,date_published
-1,how black holes form,science,"explain on a highschool level what black holes are, then explain how a star becomes a black hole, then explain the lifecycle of a black hole ending with its death to hawking radiation and explain how long this whole process will take",in_production,,2026-05-23,
-2,how are black holes formed,science,explain on a highschool level the physics of how black holes are formed,in_production,,2026-05-23,
-3,vader's injuries,star wars,describe the injuries darth vader suffered on mustafar and how they tormented him for the rest of his life,in_production,,2026-05-23,
-4,trench crusade intro,trench crusade,give a brief introduction to the lore and setting of trench crusade,in_production,,2026-05-23,
-5,flumph,dnd,"explain the lore and ecology of the dnd flumph, as well as the publication history",in_production,,2026-05-24,
-6,darth jar jar,star wars,describe the darth jar jar theory and evidence for and against it.,idea,,2026-05-25,
+id,name,niche,description,format,references,concepts,status,video_url,date_added,date_published
+1,how black holes form,science,"explain on a highschool level what black holes are, then explain how a star becomes a black hole, then explain the lifecycle of a black hole ending with its death to hawking radiation and explain how long this whole process will take",,,,in_production,,2026-05-23,
+2,how are black holes formed,science,explain on a highschool level the physics of how black holes are formed,,,,in_production,,2026-05-23,
+3,vader's injuries,star wars,describe the injuries darth vader suffered on mustafar and how they tormented him for the rest of his life,,,,in_production,,2026-05-23,
+4,trench crusade intro,trench crusade,give a brief introduction to the lore and setting of trench crusade,,,,in_production,,2026-05-23,
+5,flumph,dnd,"explain the lore and ecology of the dnd flumph, as well as the publication history",,,,in_production,,2026-05-24,
+6,darth jar jar,star wars,describe the darth jar jar theory and evidence for and against it.,,,,idea,,2026-05-25,
+7,tarasque,dnd,"make a lore video on the tarasque from dnd.
+start with a narrative on a civilian's perspective living in a village near where the tarasque wakes up
+continue with a description of what makes it so powerful
+conclude with a description of how the tarasque can be 'defeated'",,,,idea,,2026-05-26,

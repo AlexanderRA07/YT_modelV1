@@ -40,3 +40,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Container Safety
+.devcontainer/
+CLAUDE.md

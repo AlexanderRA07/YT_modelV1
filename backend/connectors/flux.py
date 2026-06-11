@@ -138,7 +138,7 @@ def _build_workflow(prompt: str) -> dict:
         "17": {
             "inputs": {
                 "scheduler": "simple",
-                "steps": 20,
+                "steps": 28,
                 "denoise": 1,
                 "model": ["30", 0]
             },
@@ -182,10 +182,10 @@ def _style_wrap(prompt: str) -> str:
     Modify to match your preferred style.
     """
     return (
-        f"{prompt}, "
-        "watercolor painting style, soft brushstrokes, painterly, "
-        "muted earthy tones, artistic, hand-painted aesthetic, "
-        "high quality illustration"
+        f"watercolor painting of {prompt}, "
+        "traditional watercolor illustration, soft wet brushstrokes, "
+        "painterly edges, visible paper texture, muted earthy tones, "
+        "NOT photorealistic, NOT photograph, NOT 3D render"
     )
 
 

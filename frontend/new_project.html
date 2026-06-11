@@ -325,6 +325,10 @@ if (_isResume && _resumeProjectId && _resumeChannel) {
     document.getElementById('selected-topic-summary').innerHTML =
       `<strong>${selectedTopic.name}</strong> <span class="text-muted">— ${selectedTopic.niche}</span><br>
        <span style="font-size:0.8rem">${selectedTopic.description || ''}</span>`;
+    // Auto-select format if the topic has one pre-set in the CSV
+    if (selectedTopic.format) {
+      selectFormat(selectedTopic.format);
+    }
   }
 
   // ── Manual Entry ───────────────────────────────────────────
@@ -384,7 +388,9 @@ if (_isResume && _resumeProjectId && _resumeChannel) {
         niche:       selectedTopic.niche,
         description: selectedTopic.description || '',
         format:      selectedFormat,
-        topic_id:    selectedTopic.id || null
+        topic_id:    selectedTopic.id || null,
+        references:  selectedTopic.references || '',
+        concepts:    selectedTopic.concepts   || ''
       });
 
       currentProjectId = result.project_id;

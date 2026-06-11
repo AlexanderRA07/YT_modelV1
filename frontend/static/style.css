@@ -196,6 +196,7 @@ textarea { resize: vertical; min-height: 120px; }
 }
 .btn-ghost:hover { color: var(--text); border-color: var(--border); }
 .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none !important; }
+.btn-sm { padding: 0.25rem 0.65rem; font-size: 0.75rem; }
 .btn-group {
   display: flex;
   gap: 0.5rem;
@@ -205,10 +206,11 @@ textarea { resize: vertical; min-height: 120px; }
 /* ── Home page tiles ─────────────────────────────────────────── */
 .home-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 1.5rem;
   margin-top: 3rem;
 }
+.home-tile-wide { grid-column: 1 / -1; }
 @media (max-width: 700px) { .home-grid { grid-template-columns: 1fr; } }
 .home-tile {
   background: var(--bg-2);
@@ -630,6 +632,7 @@ textarea { resize: vertical; min-height: 120px; }
   border-top: 1px solid var(--border);
   margin: 1.5rem 0;
 }
+
 
 /* ── Utility ─────────────────────────────────────────────────── */
 .flex        { display: flex; }

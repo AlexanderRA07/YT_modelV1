@@ -155,6 +155,7 @@
   let projectState = null;
   let reviewQueue = [];
   let currentReviewIndex = 0;
+  let currentReviewAssetId = null;
 
   const { channel, projectId } = CTX.get();
 
@@ -323,7 +324,11 @@
     reviewQueue = (state.assets || []).filter(a => a.state === 'review');
     document.getElementById('queue-count').textContent = reviewQueue.length;
     if (reviewQueue.length > 0) {
-      renderReviewPanel(reviewQueue[0]);
+      const stillInQueue = reviewQueue.find(a => a.asset_id === currentReviewAssetId);
+      if (!currentReviewAssetId || !stillInQueue) {
+        currentReviewAssetId = reviewQueue[0].asset_id;
+        renderReviewPanel(reviewQueue[0]);
+      }
     } else {
       document.getElementById('review-body').innerHTML =
         '<div class="empty-state" style="padding:2rem 0;"><span class="empty-state-icon" style="font-size:1.5rem;">○</span><div class="empty-state-text">No assets pending review</div></div>';
@@ -411,17 +416,18 @@
 
       <div class="review-actions">
         ${!isError ? `
-          <button class="btn btn-primary" onclick="approveAsset(${asset.asset_id})">✓ Approve</button>
-          ${isImage ? `<button class="btn btn-secondary" onclick="makeThumbnail(${asset.asset_id})">◈ Make Thumbnail</button>` : ''}
-          <button class="btn btn-secondary" onclick="togglePromptEdit(${asset.asset_id})">✎ Edit &amp; Retry</button>
-          <button class="btn btn-danger" onclick="rejectAsset(${asset.asset_id})">✕ Reject</button>
+          <button class="btn btn-primary"    onclick="approveAsset(${asset.asset_id})">✓ Approve</button>
+          ${isImage ? `<button class="btn btn-secondary" onclick="makeThumbnail(${asset.asset_id})">◈ Thumbnail</button>` : ''}
+          ${!['animation','voice'].includes(asset.type) ? `<button class="btn btn-secondary" onclick="togglePromptEdit(${asset.asset_id})">✎ Edit Prompt</button>` : ''}
+          <button class="btn btn-secondary"  onclick="retryAsset(${asset.asset_id})">↺ Retry</button>
+          <button class="btn btn-danger"     onclick="rejectAsset(${asset.asset_id})">✕ Reject</button>
         ` : `
           ${!['animation','voice'].includes(asset.type) ? `
-            <button class="btn btn-secondary" onclick="togglePromptEdit(${asset.asset_id})">✎ Edit &amp; Retry</button>
+            <button class="btn btn-secondary" onclick="togglePromptEdit(${asset.asset_id})">✎ Edit Prompt</button>
           ` : ''}
           <button class="btn btn-secondary" onclick="retryAsset(${asset.asset_id})">↺ Retry As-Is</button>
-          <button class="btn btn-ghost" onclick="freezeAsset(${asset.asset_id})">❄ Freeze</button>
-          <button class="btn btn-danger" onclick="rejectAsset(${asset.asset_id})">✕ Reject</button>
+          <button class="btn btn-ghost"     onclick="freezeAsset(${asset.asset_id})">❄ Freeze</button>
+          <button class="btn btn-danger"    onclick="rejectAsset(${asset.asset_id})">✕ Reject</button>
         `}
       </div>
 
@@ -490,11 +496,13 @@
     const isEditing = !editWrap.classList.contains('hidden');
 
     if (isEditing) {
-      retryAsset(id);
+      editWrap.classList.add('hidden');
+      staticEl.style.display = '';
+      if (btn) btn.textContent = '✎ Edit Prompt';
     } else {
       staticEl.style.display = 'none';
       editWrap.classList.remove('hidden');
-      if (btn) btn.textContent = '✎ Submit & Retry';
+      if (btn) btn.textContent = '✕ Close Editor';
     }
   }
 

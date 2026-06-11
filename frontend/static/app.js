@@ -72,6 +72,32 @@ const API = {
     return r.json();
   },
 
+  async put(path, body = {}) {
+    const r = await fetch(path, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) {
+      const err = await r.text();
+      throw new Error(`PUT ${path} → ${r.status}: ${err}`);
+    }
+    return r.json();
+  },
+
+  async patch(path, body = {}) {
+    const r = await fetch(path, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) {
+      const err = await r.text();
+      throw new Error(`PATCH ${path} → ${r.status}: ${err}`);
+    }
+    return r.json();
+  },
+
   async delete(path) {
     const r = await fetch(path, { method: 'DELETE' });
     if (!r.ok) throw new Error(`DELETE ${path} → ${r.status}`);
