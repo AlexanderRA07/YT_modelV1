@@ -204,19 +204,31 @@ textarea { resize: vertical; min-height: 120px; }
 }
 
 /* ── Home page tiles ─────────────────────────────────────────── */
+.home-health-wrapper {
+  padding-top: 3rem;
+}
+.home-layout .page-title  { margin-bottom: 0.25rem; }
+.home-layout .page-subtitle { margin-bottom: 0.25rem; }
+.home-layout #health-card { margin-top: 0; margin-bottom: 0; }
+.home-grid .tile-icon { margin-bottom: 0.5rem; }
+
 .home-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1.5rem;
-  margin-top: 3rem;
+  /* minmax(0, 1fr) forces equal column widths by overriding the auto min-content floor */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 150px;
+  gap: 1rem;
+  margin-top: 0.75rem;
 }
-.home-tile-wide { grid-column: 1 / -1; }
+@media (max-height: 820px) {
+  .home-grid { grid-auto-rows: 120px; }
+}
 @media (max-width: 700px) { .home-grid { grid-template-columns: 1fr; } }
 .home-tile {
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 2rem 1.75rem;
+  padding: 1.5rem 1.25rem;
   cursor: pointer;
   transition: all var(--transition);
   position: relative;
@@ -232,6 +244,15 @@ textarea { resize: vertical; min-height: 120px; }
 }
 .home-tile:hover { border-color: var(--accent); transform: translateY(-3px); }
 .home-tile:hover::before { opacity: 0.04; }
+.home-tile-vacant {
+  background: transparent;
+  border-style: dashed;
+  opacity: 0.2;
+  cursor: default;
+  pointer-events: none;
+}
+.home-tile-vacant:hover { border-color: var(--border); transform: none; }
+.home-tile-vacant::before { display: none; }
 .home-tile.disabled {
   opacity: 0.4;
   cursor: not-allowed;

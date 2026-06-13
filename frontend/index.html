@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Video Pipeline</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=3">
 </head>
 <body>
-<div class="app-shell">
+<div class="app-shell home-shell">
 
   <header class="topbar">
     <div class="topbar-logo">PIPELINE<span>/v1</span></div>
@@ -18,64 +18,71 @@
     </div>
   </header>
 
-  <main class="page-content">
+  <main class="page-content home-layout">
+
     <h1 class="page-title">Video Pipeline</h1>
-    <p class="page-subtitle">AI-assisted content production system</p>
+      <p class="page-subtitle">AI-assisted content production system</p>
 
-    <!-- Channel selector -->
-    <div class="card" style="max-width:340px; margin-bottom:2rem;">
-      <div class="section-label">Active Channel</div>
-      <select id="channel-select">
-        <option value="">Loading channels...</option>
-      </select>
-    </div>
-
-    <!-- Main tiles -->
-    <div class="home-grid">
-
-      <div class="home-tile home-tile-wide" id="tile-new" onclick="startNew()">
-        <span class="tile-icon">＋</span>
-        <div class="tile-title">Start New</div>
-        <div class="tile-desc">Begin a new video project from a topic, manual entry, or CSV.</div>
+      <!-- Channel selector -->
+      <div class="card" style="max-width:340px; margin-bottom:0.5rem;">
+        <div class="section-label">Active Channel</div>
+        <select id="channel-select">
+          <option value="">Loading channels...</option>
+        </select>
       </div>
 
-      <div class="home-tile" id="tile-log-new" onclick="goto('/log-new')">
-        <span class="tile-icon">📋</span>
-        <div class="tile-title">Log New</div>
-        <div class="tile-desc">Log a new topic to the channel CSV for future production.</div>
+      <!-- Main tiles: 3-across × 2-down -->
+      <div class="home-grid">
+
+        <!-- Row 1 -->
+        <div class="home-tile" id="tile-new" style="grid-area:1/1" onclick="startNew()">
+          <span class="tile-icon">＋</span>
+          <div class="tile-title">Start New</div>
+          <div class="tile-desc">Begin a new video project from a topic, manual entry, or CSV.</div>
+        </div>
+
+        <div class="home-tile" id="tile-continue" style="grid-area:1/2" onclick="goto('/dashboard')">
+          <span class="tile-count" id="in-production-count">—</span>
+          <span class="tile-icon">▶</span>
+          <div class="tile-title">Continue</div>
+          <div class="tile-desc">Resume an in-progress project. Pick up exactly where you left off.</div>
+        </div>
+
+        <div class="home-tile" id="tile-delete" style="grid-area:1/3" onclick="goto('/delete')">
+          <span class="tile-icon">✕</span>
+          <div class="tile-title">Delete</div>
+          <div class="tile-desc">Permanently remove an in-progress project and all its assets.</div>
+        </div>
+
+        <!-- Row 2 -->
+        <div class="home-tile" id="tile-log-new" style="grid-area:2/1" onclick="goto('/log-new')">
+          <span class="tile-icon">📋</span>
+          <div class="tile-title">Log New</div>
+          <div class="tile-desc">Log a new topic to the channel CSV for future production.</div>
+        </div>
+
+        <div class="home-tile home-tile-vacant" style="grid-area:2/2"></div>
+
+        <div class="home-tile" id="tile-finished" style="grid-area:2/3" onclick="goto('/finished')">
+          <span class="tile-count" id="published-count">—</span>
+          <span class="tile-icon">◉</span>
+          <div class="tile-title">Review Finished</div>
+          <div class="tile-desc">Browse published videos with thumbnails, descriptions, and links.</div>
+        </div>
+
       </div>
 
-      <div class="home-tile" id="tile-delete" onclick="goto('/delete')">
-        <span class="tile-icon">✕</span>
-        <div class="tile-title">Delete</div>
-        <div class="tile-desc">Permanently remove an in-progress project and all its assets.</div>
+      <!-- Connector status -->
+      <div class="home-health-wrapper">
+      <div class="card" id="health-card">
+        <div class="section-label">Connector Status</div>
+        <div id="health-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.5rem;margin-top:0.5rem;">
+          <div class="stat-cell"><div class="stat-label">Loading...</div></div>
+        </div>
       </div>
+      </div><!-- /home-health-wrapper -->
 
-      <div class="home-tile" id="tile-continue" onclick="goto('/dashboard')">
-        <span class="tile-count" id="in-production-count">—</span>
-        <span class="tile-icon">▶</span>
-        <div class="tile-title">Continue</div>
-        <div class="tile-desc">Resume an in-progress project. Pick up exactly where you left off.</div>
-      </div>
-
-      <div class="home-tile" id="tile-finished" onclick="goto('/finished')">
-        <span class="tile-count" id="published-count">—</span>
-        <span class="tile-icon">◉</span>
-        <div class="tile-title">Review Finished</div>
-        <div class="tile-desc">Browse published videos with thumbnails, descriptions, and links.</div>
-      </div>
-
-    </div>
-
-    <!-- Connector status -->
-    <div class="card mt-3" id="health-card">
-      <div class="section-label">Connector Status</div>
-      <div id="health-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.5rem;margin-top:0.5rem;">
-        <div class="stat-cell"><div class="stat-label">Loading...</div></div>
-      </div>
-    </div>
-
-    <!-- In-production projects -->
+    <!-- In-production panel: appended to page, scroll to reach it -->
     <div class="card mt-3" id="in-production-panel" style="display:none;">
       <div class="section-label">In Production</div>
       <div id="in-production-list" style="margin-top:0.5rem;"></div>
