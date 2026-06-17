@@ -41,6 +41,67 @@ from backend.queue_worker import (
 CHANNELS_DIR = os.getenv("CHANNELS_DIR", "channels")
 
 
+async def _validate_credits(raw_credits: str, provided_refs: str = "") -> str:
+    """
+    Ensure provided references appear in credits, then validate all URLs.
+    Only reachable URLs are kept. Runs all checks in parallel.
+    """
+    import httpx
+    from urllib.parse import urlparse
+
+    lines = [l.strip() for l in raw_credits.split("\n") if l.strip()]
+
+    # Prepend any provided reference URLs not already mentioned
+    if provided_refs:
+        mentioned = set()
+        for line in lines:
+            if " | " in line:
+                _, url = line.split(" | ", 1)
+                mentioned.add(url.strip().rstrip("/").lower())
+
+        inserts = []
+        for ref in [r.strip() for r in provided_refs.split(";") if r.strip()]:
+            if not ref.startswith("http"):
+                ref = "https://" + ref
+            norm = ref.rstrip("/").lower()
+            if norm not in mentioned:
+                host = urlparse(ref).netloc.replace("www.", "")
+                inserts.append(f"{host} | {ref}")
+        lines = inserts + lines
+
+    # Drop the "found nothing" sentinel
+    lines = [l for l in lines if "¯\\_(ツ)_/¯" not in l and "¯\\_(ツ)_/¯" not in l]
+
+    if not lines:
+        return ""
+
+    async def check(client: "httpx.AsyncClient", line: str) -> str | None:
+        if " | " not in line:
+            return line  # plain-text note, keep it
+        label, url = line.split(" | ", 1)
+        url = url.strip()
+        if not url.startswith("http"):
+            url = "https://" + url
+        try:
+            resp = await client.head(url)
+            if resp.status_code == 405:
+                resp = await client.get(url)
+            if resp.status_code < 400:
+                return f"{label.strip()} | {url}"
+        except Exception:
+            pass
+        return None
+
+    async with __import__("httpx").AsyncClient(
+        follow_redirects=True,
+        timeout=8.0,
+        headers={"User-Agent": "Mozilla/5.0 (compatible; VideoPipeline/1.0)"},
+    ) as client:
+        results = await asyncio.gather(*[check(client, line) for line in lines])
+
+    return "\n".join(r for r in results if r is not None)
+
+
 # ==============================================================
 # Helpers
 # ==============================================================
@@ -221,10 +282,13 @@ class Pipeline:
 
         if result["ok"]:
             draft       = result["data"]["script"]
+            episodes    = result["data"].get("episodes", [])
             tags        = result["data"].get("tags", [])
             description = result["data"].get("description", "")
-            credits     = result["data"].get("credits", "")
-            ps.update_script(draft=draft, tags=tags, description=description, credits=credits)
+            raw_credits = result["data"].get("credits", "")
+            credits = await _validate_credits(raw_credits, ps.get("references") or "")
+            ps.update_script(draft=draft, episodes=episodes, tags=tags,
+                             description=description, credits=credits)
             await worker.post(status_msg("Script ready for review."))
         else:
             ps.add_error("claude", result["error"]["detail"])
@@ -235,13 +299,15 @@ class Pipeline:
         return result
 
     async def approve_script(self, final_script: str, tags: list,
-                              shot_list: list, full_approve: bool = False):
+                              shot_list: list, full_approve: bool = False,
+                              description: str = "", credits: str = ""):
         """
         Called when user approves the script (either Approve or Full Approve).
         Saves final script, updates flags, then dispatches initial asset generation.
         """
         ps = self._load()
-        ps.update_script(final=final_script, tags=tags, shot_list=shot_list)
+        ps.update_script(final=final_script, tags=tags, shot_list=shot_list,
+                         description=description, credits=credits)
         ps.update("script_approved", True)
         ps.update("full_approve", full_approve)
         ps.update_ui(AppPage.DASHBOARD)

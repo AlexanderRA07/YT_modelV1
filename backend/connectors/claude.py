@@ -34,19 +34,22 @@ async def generate_script(title: str, description: str, niche: str,
 
     Returns:
         {
-            "script": str,     <- full script text with visual cue markers
-            "tags":   list     <- list of tag strings extracted from end of script
+            "script":   str,   <- full script text with episode + visual markers
+            "episodes": list,  <- structured [{number, title, scenes: [{image_prompt, narration}]}]
+            "tags":     list,
+            "description": str,
+            "credits":  str
         }
     """
     format_note = FORMAT_GUIDANCE.get(format, "")
     style_section = f"\n\nCHANNEL STYLE GUIDE:\n{style_guide}" if style_guide.strip() else ""
 
-    # Build optional sections from CSV fields
     ref_urls = [r.strip() for r in references.split(";") if r.strip()] if references.strip() else []
     refs_section = (
-        "\n\nREFERENCE SOURCES (search these URLs and draw from them):\n"
+        "\n\nREFERENCE SOURCES (draw from these and credit them):\n"
         + "\n".join(f"- {r}" for r in ref_urls)
     ) if ref_urls else ""
+    ref_count = len(ref_urls)
 
     concepts_section = (
         f"\n\nCREATIVE CONCEPTS & ANGLES:\n{concepts.strip()}\n"
@@ -63,22 +66,31 @@ FORMAT: {format} video. {format_note}
 INSTRUCTIONS:
 Write a complete video script following these rules exactly:
 
-1. STRUCTURE: Write the script as a series of scenes. Each scene must begin
-   with a visual cue marker on its own line in this exact format:
-   [VISUAL: brief description of the image/scene to generate]
+1. STRUCTURE: Divide the script into exactly 4 episodes, each marked with:
+   [EPISODE N: Short Title]
+
+   Episode 1 — Opening Narrative: A character-driven anecdote or vignette that
+     draws the viewer into the world of the topic. Sets tone and atmosphere.
+     Does NOT explain the topic directly — it creates intrigue.
+   Episode 2 — Core Information: Informative coverage of the main topic.
+     Facts, explanations, the substance of the video.
+   Episode 3 — Lore & History: Deeper real-world context — historical background,
+     lore, trivia, behind-the-scenes detail that rewards curious viewers.
+   Episode 4 — Closing Narrative: Return to the character or image from Episode 1.
+     Close the loop. Leave the viewer with a final thought or lingering question.
+
+   Within each episode, each scene begins with a visual cue on its own line:
+   [VISUAL: concrete description of exactly what is visible in the frame]
    Followed immediately by the spoken narration for that scene.
 
-   Each VISUAL description must be a concrete description of exactly what is
-   visible in the frame. Include subject, setting, lighting, and camera angle.
+   Each VISUAL description must be concrete: subject, setting, lighting, camera angle.
    Never use abstract or emotional language.
-   If the image depicts a named character, name that character and describe his/her characteristics.
-   If the character is obscure, also describe their appearance (hair, clothing, build) rather than relying on the name alone.
+   If the image depicts a named character, name them and describe their appearance
+   (especially if obscure — include hair, clothing, build rather than relying on the name).
    Bad:  "a tense confrontation between two enemies"
-   Good: "two cloaked figures facing each other in a torchlit stone corridor, low camera angle, deep shadows, dust particles in the air"
+   Good: "two cloaked figures facing each other in a torchlit stone corridor, low camera angle, deep shadows"
    Bad: "an unlikely hero sneaks up on a dragon"
-   Good: "Bilbo Baggins, small and wide-eyed in his travelling cloak, creeping
-      along a ledge above Smaug the golden dragon coiled on a vast pile of
-      treasure, warm firelight from below, high angle shot"
+   Good: "Bilbo Baggins, small and wide-eyed in his travelling cloak, creeping along a ledge above Smaug the golden dragon coiled on a vast treasure pile, warm firelight from below, high angle shot"
 
 2. TONE: Informative, engaging, and conversational. Write as if speaking
    directly to a curious viewer. Avoid filler phrases, excessive adjectives,
@@ -89,7 +101,7 @@ Write a complete video script following these rules exactly:
    "In this video" or "Today we're going to."
 
 4. PACING: Write to be spoken aloud. Short sentences. Vary rhythm.
-   Read it back mentally -- if it sounds like an essay, rewrite it.
+   Read it back mentally — if it sounds like an essay, rewrite it.
 
 5. TAGS: After the script, after a line containing only \"---TAGS---\",
    list 15-20 YouTube search tags separated by commas.
@@ -103,23 +115,34 @@ Write a complete video script following these rules exactly:
    ends with a call to action. No hashtags — those come from the tags.
 
 7. CREDITS: After the description, after a line containing only "---CREDITS---",
-   list only sources you actually retrieved via web search during this generation.
+   list every source that informed this script.
    Format each as: Label | URL
-   
-   Search strategy:
-   - First search for the topic directly
-   - If results are thin or unreliable, search for "[topic] wiki" and
-     "[topic] fandom wiki" — fan wikis (fandom.com, wikia.com) are valid
-     and often the best source for game/fictional lore topics
-   - Only credit URLs you actually retrieved and read during this generation
-   - Only credit URLs returned by your web search tool during this session.
-     A valid credit has a URL you navigated to and read. If you cannot point
-     to a specific retrieved page, omit that credit entirely.
-   - If you found nothing credible via search, write: ¯\_(ツ)_/¯
+   Every URL must start with https://.
+
+   Sourcing rules:
+   - ALWAYS list the REFERENCE SOURCES provided above first (if any were given) —
+     you drew from those, so credit them. Use the site or author name as the label.
+   - Then use web_search to find ADDITIONAL sources. If {ref_count} reference(s) were
+     provided, find at least {max(ref_count, 3)} more via search. If none were provided,
+     aim for at least 5 credible sources.
+   - Useful searches: the topic directly, "[topic] wiki", "[topic] history",
+     "[topic] fandom" — fan wikis (fandom.com, wikia.com) are valid and often
+     the best source for game/fictional lore topics.
+   - Include any URL that meaningfully informed the content: Wikipedia, fan wikis,
+     academic summaries, news articles, official sites.
+   - If truly nothing credible can be found via search, write: ¯\_(ツ)_/¯
 
 EXAMPLE FORMAT:
-[VISUAL: wide shot of a dark forest at night, watercolor style]
-Deep in the oldest forests on Earth, something is watching.
+[EPISODE 1: Opening Narrative]
+[VISUAL: wide shot of a moonlit forest floor, gnarled roots and faint bioluminescent fungi, atmospheric watercolor style]
+Deep in the oldest forests on Earth, something ancient is listening.
+
+[VISUAL: extreme close-up of a fungal thread network beneath dark soil, cross-section view, soft amber lighting]
+Not with ears. Not with eyes. But with a web of filaments older than memory.
+
+[EPISODE 2: Core Information]
+[VISUAL: illustrated diagram of a mycorrhizal network connecting three oak trees, roots intertwined underground, clean educational style]
+Scientists call it the mycorrhizal network. Most people call it the Wood Wide Web.
 
 ---TAGS---
 nature documentary, forest facts, mycorrhizal network, trees communicate, plant intelligence, fungi network, forest science, biology explained, nature science, how forests work
@@ -128,27 +151,28 @@ nature documentary, forest facts, mycorrhizal network, trees communicate, plant 
 Beneath every forest floor lies a hidden internet — a vast network of fungal threads connecting trees across miles. In this video, we explore how trees communicate, share resources, and even warn each other of danger. The science is stranger than fiction. Like and subscribe for more nature deep-dives.
 
 ---CREDITS---
-Simard, S. (2021) Finding the Mother Tree | https://www.hachettebooks.com/titles/suzanne-simard/finding-the-mother-tree/9780525656098/
-BBC Earth documentary series | https://www.bbc.co.uk/earth
+Wikipedia — Mycorrhizal network | https://en.wikipedia.org/wiki/Mycorrhizal_network
+Simard, S. — Finding the Mother Tree | https://www.hachettebooks.com/titles/suzanne-simard/finding-the-mother-tree/9780525656098/
 
 Now write the full script for: {title}"""
 
     message = await client.messages.create(
         model=MODEL,
         max_tokens=4096,
-        tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
+        tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 10}],
         messages=[{"role": "user", "content": prompt}]
     )
-    
+
     raw = ""
     for block in message.content:
         if hasattr(block, "text"):
             raw += block.text
-    
-    script_text, tags, description, credits = _parse_script(raw)
+
+    script_text, episodes, tags, description, credits = _parse_script(raw)
 
     return {
         "script":      script_text,
+        "episodes":    episodes,
         "tags":        tags,
         "description": description,
         "credits":     credits
@@ -175,18 +199,17 @@ async def extract_shot_list(script: str) -> list:
         ]
     """
     shots = []
-    # Split on [VISUAL: ...] markers
     pattern = r'\[VISUAL:\s*(.*?)\]'
     parts = re.split(pattern, script, flags=re.IGNORECASE)
 
-    # parts alternates: [pre-text, visual1, narration1, visual2, narration2, ...]
     shot_number = 1
-    i = 1  # start after any pre-marker text
+    i = 1
     while i < len(parts) - 1:
         visual = parts[i].strip()
         narration = parts[i + 1].strip() if i + 1 < len(parts) else ""
-        # Strip the tags section if it leaked into the last narration
         narration = narration.split("---TAGS---")[0].strip()
+        # Strip any episode markers that leaked into the narration tail
+        narration = re.sub(r'\[EPISODE\s+\d+:[^\]]*\]', '', narration, flags=re.IGNORECASE).strip()
         if visual:
             shots.append({
                 "shot_number":  shot_number,
@@ -237,12 +260,12 @@ def save_style_diff(channel_dir: str, project_id: str,
 # Internal helpers
 # ==============================================================
 
-def _parse_script(raw: str) -> tuple[str, list, str, str]:
-    """Split raw Claude output into script, tags, description, credits."""
-    script_text  = raw.strip()
-    tags         = []
-    description  = ""
-    credits      = ""
+def _parse_script(raw: str) -> tuple[str, list, list, str, str]:
+    """Split raw Claude output into script, episodes, tags, description, credits."""
+    script_text = raw.strip()
+    tags        = []
+    description = ""
+    credits     = ""
 
     if "---TAGS---" in script_text:
         script_text, remainder = script_text.split("---TAGS---", 1)
@@ -264,4 +287,47 @@ def _parse_script(raw: str) -> tuple[str, list, str, str]:
     else:
         description = remainder.strip()
 
-    return script_text, tags, description, credits
+    episodes = _parse_episodes(script_text)
+    return script_text, episodes, tags, description, credits
+
+
+def _parse_episodes(script_text: str) -> list:
+    """Parse [EPISODE N: Title] sections and their nested scenes."""
+    episode_pattern = re.compile(r'\[EPISODE\s+(\d+):\s*([^\]]+)\]', re.IGNORECASE)
+    parts = episode_pattern.split(script_text)
+
+    episodes = []
+    # After split: [pre, num1, title1, body1, num2, title2, body2, ...]
+    i = 1
+    while i + 2 <= len(parts):
+        number = int(parts[i])
+        title  = parts[i + 1].strip()
+        body   = parts[i + 2]
+        episodes.append({
+            "number": number,
+            "title":  title,
+            "scenes": _parse_scenes(body)
+        })
+        i += 3
+
+    return episodes
+
+
+def _parse_scenes(episode_body: str) -> list:
+    """Extract [VISUAL: ...] scenes from an episode body."""
+    visual_pattern = re.compile(r'\[VISUAL:\s*(.*?)\]', re.IGNORECASE)
+    parts = visual_pattern.split(episode_body)
+
+    scenes = []
+    i = 1
+    while i < len(parts):
+        image_prompt = parts[i].strip()
+        narration = parts[i + 1].strip() if i + 1 < len(parts) else ""
+        # Stop at the next episode marker or tags section
+        narration = re.split(r'\[EPISODE', narration)[0].strip()
+        narration = narration.split("---TAGS---")[0].strip()
+        if image_prompt:
+            scenes.append({"image_prompt": image_prompt, "narration": narration})
+        i += 2
+
+    return scenes

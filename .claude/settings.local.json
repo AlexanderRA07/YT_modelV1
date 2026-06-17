@@ -5,7 +5,8 @@
       "Bash(python *)",
       "Bash(/workspace/.venv/bin/python3 -m pip install pytest pytest-asyncio -q)",
       "Bash(/workspace/.venv/bin/python3 -m ensurepip)",
-      "Bash(sudo apt-get install -y python3-pytest python3-pytest-asyncio)"
+      "Bash(sudo apt-get install -y python3-pytest python3-pytest-asyncio)",
+      "Bash(/workspace/.venv/bin/python3 -m pytest tests/ -x -q)"
     ]
   }
 }

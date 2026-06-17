@@ -655,6 +655,163 @@ textarea { resize: vertical; min-height: 120px; }
 }
 
 
+/* ── Episode script editor ───────────────────────────────────── */
+.script-meta-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  background: var(--bg-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-bottom: none;
+}
+.script-meta-bar .script-toolbar-label { font-size: 0.75rem; color: var(--text-3); flex: 1; }
+
+.episode-editor-wrap {
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  overflow: hidden;
+}
+
+.episode-card {
+  background: var(--bg-2);
+  border-top: 1px solid var(--border);
+}
+.episode-card:first-child { border-top: none; }
+
+.episode-header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--bg-3);
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  position: sticky;
+  top: 54px;
+  z-index: 10;
+}
+.ep-num {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.5rem;
+  color: var(--accent);
+  line-height: 1;
+  min-width: 2rem;
+}
+.ep-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex: 1;
+}
+.ep-count {
+  font-size: 0.65rem;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.ep-scenes { padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; }
+
+.scene-block {
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.scene-block-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--bg-4);
+  border-bottom: 1px solid var(--border);
+}
+.scene-num-label {
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.scene-fields { padding: 0.65rem 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; }
+
+.scene-field-row { display: flex; align-items: flex-start; gap: 0.5rem; }
+.field-pill {
+  font-size: 0.58rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.45rem;
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 0.55rem;
+}
+.field-pill.visual {
+  background: rgba(200,240,96,0.1);
+  color: var(--accent-dim);
+  border: 1px solid rgba(200,240,96,0.2);
+}
+.field-pill.narr {
+  background: rgba(96,168,240,0.1);
+  color: var(--blue);
+  border: 1px solid rgba(96,168,240,0.2);
+}
+
+.scene-visual-ta {
+  min-height: unset !important;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  background: var(--bg-4);
+  resize: vertical;
+}
+.scene-narration-ta {
+  min-height: unset !important;
+  font-size: 0.85rem;
+  line-height: 1.75;
+  background: var(--bg-2);
+  resize: vertical;
+}
+
+.script-fallback-ta {
+  min-height: 420px !important;
+  font-size: 0.85rem;
+  line-height: 1.8;
+  background: var(--bg-3);
+  border-radius: 0;
+  border: none;
+  padding: 1.25rem 1.5rem;
+}
+.script-fallback-ta:focus { border: none; box-shadow: none; }
+
+/* ── Credits editor ─────────────────────────────────────────── */
+.credits-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.credit-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr auto auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+.credit-row input { min-height: unset !important; font-size: 0.82rem; padding: 0.4rem 0.6rem; }
+.credit-open-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.55rem;
+  border-radius: var(--radius);
+  font-size: 0.75rem;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  text-decoration: none;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+.credit-open-btn:hover { color: var(--accent); border-color: var(--accent); }
+
 /* ── Utility ─────────────────────────────────────────────────── */
 .flex        { display: flex; }
 .flex-center { display: flex; align-items: center; }

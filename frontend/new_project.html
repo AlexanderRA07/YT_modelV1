@@ -30,7 +30,7 @@
         <div class="section-label">Topic Source</div>
         <div class="btn-group mt-1">
           <button class="btn btn-secondary" id="btn-from-csv" onclick="showCSVPicker()">Draw from CSV</button>
-          <button class="btn btn-secondary" onclick="showManualEntry()">Enter Manually</button>
+          <button class="btn btn-secondary" onclick="window.location.href='/log_new.html'">Enter Manually</button>
           <button class="btn btn-secondary" style="opacity:0.35;cursor:not-allowed;" title="Coming soon">Generate from Scratch</button>
         </div>
       </div>
@@ -125,27 +125,39 @@
         <span id="script-status-badge" class="state-badge state-pending">Generating...</span>
       </div>
 
-      <div class="script-editor">
-        <div class="script-toolbar">
-          <span class="script-toolbar-label" id="script-word-count">— words</span>
-          <button class="btn btn-ghost" onclick="copyScript()" style="font-size:0.75rem;">Copy</button>
+      <!-- Script meta bar + episode editor -->
+      <div class="script-meta-bar">
+        <span class="script-toolbar-label" id="script-word-count">— words</span>
+        <button class="btn btn-ghost" onclick="copyScript()" style="font-size:0.75rem;">Copy All</button>
+      </div>
+      <div id="episode-editor" class="episode-editor-wrap">
+        <div style="padding:3rem 1.5rem;text-align:center;color:var(--text-3);font-size:0.85rem;">
+          Script will appear here once generated...
         </div>
-        <textarea id="script-textarea" placeholder="Script will appear here once generated..." oninput="updateWordCount()"></textarea>
       </div>
 
+      <!-- Tags -->
       <div class="card mt-1">
-        <div class="section-label">Tags (appended to description)</div>
-        <div id="tags-preview" class="text-muted text-small mt-1" style="line-height:1.8;">—</div>
+        <div class="section-label">Tags</div>
+        <textarea id="tags-edit" rows="2" placeholder="tag1, tag2, tag3..." style="min-height:unset;margin-top:0.5rem;"></textarea>
       </div>
 
+      <!-- Description -->
       <div class="card mt-1">
         <div class="section-label">Video Description</div>
-        <div id="description-preview" class="text-muted text-small mt-1" style="line-height:1.7;white-space:pre-wrap;">—</div>
+        <textarea id="desc-edit" rows="4" placeholder="YouTube video description..." style="min-height:unset;margin-top:0.5rem;"></textarea>
       </div>
 
+      <!-- Credits -->
       <div class="card mt-1">
-        <div class="section-label">Credits &amp; Sources</div>
-        <div id="credits-preview" class="text-muted text-small mt-1" style="line-height:1.8;" id="credits-preview">—</div>
+        <div class="section-label" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>Credits &amp; Sources</span>
+          <button class="btn btn-ghost btn-sm" onclick="addCreditRow()">+ Add Source</button>
+        </div>
+        <div id="credits-list" class="credits-list mt-1"></div>
+        <p class="text-muted text-small mt-1" style="font-size:0.72rem;">
+          Format: Label | URL &nbsp;·&nbsp; Links validated automatically on generation.
+        </p>
       </div>
 
       <div id="error-log" class="card mt-1 hidden">
@@ -413,13 +425,17 @@ if (_isResume && _resumeProjectId && _resumeChannel) {
   }
 
   // ── Script review ──────────────────────────────────────────
+  let _episodes = [];   // live episode data; mutated as user edits
+
+  function _esc(str) {
+    return String(str)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
   onMessage(msg => {
-    if (msg.type === 'status_update') {
-      const text = msg.payload.text;
-      if (text.includes('Script ready')) {
-        // Load state to get the draft
-        loadScriptFromState();
-      }
+    if (msg.type === 'status_update' && msg.payload.text.includes('Script ready')) {
+      loadScriptFromState();
     }
     if (msg.type === 'project_error') {
       toast(msg.payload.detail.split('\n')[0], 'error', 6000);
@@ -432,10 +448,10 @@ if (_isResume && _resumeProjectId && _resumeChannel) {
       li.style.cssText = 'padding:0.5rem 0;border-top:1px solid var(--border);font-size:0.78rem;';
       li.innerHTML = `
         <div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;">
-          <span style="color:var(--accent-red,#ff4444);font-weight:600;">[${msg.payload.module}]</span>
-          <span style="color:var(--text-muted);">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+          <span style="color:var(--red);font-weight:600;">[${msg.payload.module}]</span>
+          <span style="color:var(--text-2);">${new Date(msg.timestamp).toLocaleTimeString()}</span>
         </div>
-        <pre style="white-space:pre-wrap;margin:0;color:var(--text-muted);font-size:0.72rem;">${msg.payload.detail}</pre>
+        <pre style="white-space:pre-wrap;margin:0;color:var(--text-2);font-size:0.72rem;">${_esc(msg.payload.detail)}</pre>
       `;
       list.appendChild(li);
     }
@@ -445,72 +461,179 @@ if (_isResume && _resumeProjectId && _resumeChannel) {
     if (!currentProjectId) return;
     try {
       const state = await API.get(`/api/projects/${channel}/${currentProjectId}/state`);
-      const draft       = state.script.draft;
-      const tags        = state.script.tags;
-      const description = state.script.description || '';
-      const credits     = state.script.credits     || '';
+      const { episodes = [], tags = [], description = '', credits = '' } = state.script;
 
-      document.getElementById('script-textarea').value = draft;
       document.getElementById('script-status-badge').textContent = 'Ready';
       document.getElementById('script-status-badge').className = 'state-badge state-review';
-      document.getElementById('tags-preview').textContent = tags.join(', ') || '—';
-      document.getElementById('description-preview').textContent = description || '—';
 
-      // Render credits with hyperlinks
-      const creditsEl = document.getElementById('credits-preview');
-      if (credits && credits !== 'None') {
-        creditsEl.innerHTML = credits.split('\n')
-          .filter(line => line.trim())
-          .map(line => {
-            if (line.includes(' | ')) {
-              const [label, url] = line.split(' | ', 2);
-              return `<div>${label.trim()} — <a href="${url.trim()}" target="_blank" 
-                style="color:var(--accent);">${url.trim()}</a></div>`;
-            }
-            return `<div>${line}</div>`;
-          }).join('');
+      if (episodes.length > 0) {
+        renderEpisodeEditor(episodes);
       } else {
-        creditsEl.textContent = '—';
+        renderFallbackEditor(state.script.draft || '');
       }
+
+      document.getElementById('tags-edit').value = tags.join(', ');
+      document.getElementById('desc-edit').value = description;
+      renderCreditRows(credits);
+      updateWordCount();
 
       ['btn-retry-script','btn-approve-script','btn-full-approve-script'].forEach(id => {
         document.getElementById(id).disabled = false;
       });
-      updateWordCount();
     } catch(e) {
       toast('Could not load script state', 'error');
     }
+  }
+
+  // ── Episode editor rendering ────────────────────────────────
+  function renderEpisodeEditor(episodes) {
+    _episodes = JSON.parse(JSON.stringify(episodes)); // deep copy
+    const html = _episodes.map((ep, ei) => `
+      <div class="episode-card">
+        <div class="episode-header">
+          <span class="ep-num">${String(ep.number).padStart(2,'0')}</span>
+          <span class="ep-title">${_esc(ep.title)}</span>
+          <span class="ep-count">${ep.scenes.length} scene${ep.scenes.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="ep-scenes">
+          ${ep.scenes.map((sc, si) => sceneBlockHTML(ei, si, sc)).join('')}
+        </div>
+      </div>
+    `).join('');
+    document.getElementById('episode-editor').innerHTML = html;
+  }
+
+  function sceneBlockHTML(ei, si, sc) {
+    return `
+      <div class="scene-block">
+        <div class="scene-block-header">
+          <span class="scene-num-label">Scene ${si + 1}</span>
+        </div>
+        <div class="scene-fields">
+          <div class="scene-field-row">
+            <span class="field-pill visual">Visual</span>
+            <textarea class="scene-visual-ta"
+              rows="2"
+              oninput="_episodes[${ei}].scenes[${si}].image_prompt=this.value"
+            >${_esc(sc.image_prompt)}</textarea>
+          </div>
+          <div class="scene-field-row">
+            <span class="field-pill narr">Narr.</span>
+            <textarea class="scene-narration-ta"
+              rows="4"
+              oninput="_episodes[${ei}].scenes[${si}].narration=this.value;updateWordCount()"
+            >${_esc(sc.narration)}</textarea>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderFallbackEditor(draft) {
+    _episodes = [];
+    document.getElementById('episode-editor').innerHTML =
+      `<textarea class="script-fallback-ta"
+          oninput="updateWordCount()"
+          placeholder="Script will appear here..."
+       >${_esc(draft)}</textarea>`;
+  }
+
+  // ── Credits rows ────────────────────────────────────────────
+  function renderCreditRows(creditsStr) {
+    const container = document.getElementById('credits-list');
+    if (!creditsStr || !creditsStr.trim()) { container.innerHTML = ''; return; }
+    container.innerHTML = creditsStr.split('\n')
+      .filter(l => l.trim())
+      .map(line => {
+        const [label, url] = line.includes(' | ')
+          ? line.split(' | ', 2).map(s => s.trim())
+          : [line.trim(), ''];
+        return creditRowHTML(label, url);
+      }).join('');
+  }
+
+  function creditRowHTML(label = '', url = '') {
+    const safeLabel = _esc(label);
+    const safeUrl   = _esc(url);
+    // Ensure url has scheme for the href
+    const href = url && !url.startsWith('http') ? 'https://' + url : url;
+    return `<div class="credit-row">
+      <input type="text" class="credit-label" value="${safeLabel}" placeholder="Source label">
+      <input type="url"  class="credit-url"   value="${safeUrl}"   placeholder="https://..." oninput="updateCreditLink(this)">
+      <a class="credit-open-btn" href="${_esc(href)}" target="_blank" rel="noopener" title="Open link">↗</a>
+      <button class="btn btn-ghost btn-sm" style="color:var(--red);"
+              onclick="this.closest('.credit-row').remove()" title="Remove">✕</button>
+    </div>`;
+  }
+
+  function updateCreditLink(urlInput) {
+    const row  = urlInput.closest('.credit-row');
+    const link = row.querySelector('.credit-open-btn');
+    let url = urlInput.value.trim();
+    if (url && !url.startsWith('http')) url = 'https://' + url;
+    link.href = url || '#';
+  }
+
+  function addCreditRow() {
+    document.getElementById('credits-list').insertAdjacentHTML('beforeend', creditRowHTML());
+  }
+
+  function collectCredits() {
+    return Array.from(document.querySelectorAll('#credits-list .credit-row'))
+      .map(row => {
+        const label = row.querySelector('.credit-label').value.trim();
+        let   url   = row.querySelector('.credit-url').value.trim();
+        if (url && !url.startsWith('http')) url = 'https://' + url;
+        return label || url ? `${label} | ${url}` : null;
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  // ── Script reconstruction ───────────────────────────────────
+  function reconstructScript() {
+    const fallback = document.querySelector('.script-fallback-ta');
+    if (fallback) return fallback.value;
+
+    return _episodes.map(ep =>
+      `[EPISODE ${ep.number}: ${ep.title}]\n` +
+      ep.scenes.map(sc =>
+        `[VISUAL: ${sc.image_prompt}]\n${sc.narration}`
+      ).join('\n\n')
+    ).join('\n\n');
   }
 
   async function retryScript() {
     ['btn-retry-script','btn-approve-script','btn-full-approve-script'].forEach(id => {
       document.getElementById(id).disabled = true;
     });
-    document.getElementById('script-textarea').value = '';
+    _episodes = [];
+    document.getElementById('episode-editor').innerHTML =
+      `<div style="padding:3rem 1.5rem;text-align:center;color:var(--text-3);font-size:0.85rem;">Regenerating...</div>`;
+    document.getElementById('tags-edit').value = '';
+    document.getElementById('desc-edit').value = '';
+    document.getElementById('credits-list').innerHTML = '';
     document.getElementById('script-status-badge').textContent = 'Regenerating...';
     document.getElementById('script-status-badge').className = 'state-badge state-pending';
+    document.getElementById('script-word-count').textContent = '— words';
     await API.post(`/api/projects/${channel}/${currentProjectId}/script/generate`);
   }
 
   async function approveScript(fullApprove) {
-    const finalScript = document.getElementById('script-textarea').value.trim();
+    const finalScript = reconstructScript().trim();
     if (!finalScript) { toast('Script is empty', 'warn'); return; }
 
-    // Parse tags from end of script
-    let tags = [];
-    if (finalScript.includes('---TAGS---')) {
-      const parts = finalScript.split('---TAGS---');
-      tags = parts[1].trim().split(',').map(t => t.trim()).filter(Boolean);
-    }
+    const tags        = document.getElementById('tags-edit').value.split(',').map(t => t.trim()).filter(Boolean);
+    const description = document.getElementById('desc-edit').value.trim();
+    const credits     = collectCredits();
 
-    // Save style diff (draft vs final) via state already on server
-    // Shot list is parsed server-side from the approved script
     try {
       await API.post(`/api/projects/${channel}/${currentProjectId}/script/approve`, {
         final_script: finalScript,
         tags,
-        shot_list: [],   // server will extract via extract_shot_list()
-        full_approve: fullApprove
+        shot_list: [],
+        full_approve: fullApprove,
+        description,
+        credits
       });
       toast(fullApprove ? 'Full approve — generating all assets' : 'Script approved', 'ok');
       CTX.set(channel, currentProjectId);
@@ -521,14 +644,26 @@ if (_isResume && _resumeProjectId && _resumeChannel) {
   }
 
   function updateWordCount() {
-    const text = document.getElementById('script-textarea').value;
-    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    let words = 0;
+    document.querySelectorAll('.scene-narration-ta').forEach(ta => {
+      if (ta.value.trim()) words += ta.value.trim().split(/\s+/).length;
+    });
+    const fallback = document.querySelector('.script-fallback-ta');
+    if (fallback && fallback.value.trim()) words += fallback.value.trim().split(/\s+/).length;
     document.getElementById('script-word-count').textContent = `${words} words`;
   }
 
   function copyScript() {
-    const text = document.getElementById('script-textarea').value;
-    navigator.clipboard.writeText(text).then(() => toast('Copied', 'ok'));
+    const full = [
+      reconstructScript(),
+      '---TAGS---',
+      document.getElementById('tags-edit').value,
+      '---DESCRIPTION---',
+      document.getElementById('desc-edit').value,
+      '---CREDITS---',
+      collectCredits()
+    ].join('\n\n');
+    navigator.clipboard.writeText(full).then(() => toast('Copied', 'ok'));
   }
 </script>
 </body>

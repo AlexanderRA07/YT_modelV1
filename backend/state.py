@@ -90,7 +90,10 @@ def default_project_state(project_id: str, title: str, niche: str,
             "draft": "",               # AI-generated draft
             "final": "",               # user-edited final
             "tags": [],
-            "shot_list": []            # list of shot dicts from script stage
+            "shot_list": [],           # list of shot dicts from script stage
+            "description": "",
+            "credits": "",
+            "episodes": []             # [{number, title, scenes: [{image_prompt, narration}]}]
         },
 
         # --- Assets ---
@@ -227,7 +230,9 @@ class ProjectState:
         self._state["queue_position"] = queue_position
         self._save()
 
-    def update_script(self, draft: str = None, final: str = None, tags: list = None, shot_list: list = None, description: str = None, credits: str = None):
+    def update_script(self, draft: str = None, final: str = None, tags: list = None,
+                      shot_list: list = None, description: str = None,
+                      credits: str = None, episodes: list = None):
         """Update any combination of script fields and auto-save."""
         if draft       is not None: self._state["script"]["draft"]       = draft
         if final       is not None: self._state["script"]["final"]       = final
@@ -235,6 +240,7 @@ class ProjectState:
         if shot_list   is not None: self._state["script"]["shot_list"]   = shot_list
         if description is not None: self._state["script"]["description"] = description
         if credits     is not None: self._state["script"]["credits"]     = credits
+        if episodes    is not None: self._state["script"]["episodes"]    = episodes
         self._save()
 
     # ----------------------------------------------------------

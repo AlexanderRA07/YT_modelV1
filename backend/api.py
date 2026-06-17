@@ -263,6 +263,8 @@ class ApproveScriptRequest(BaseModel):
     tags:         list
     shot_list:    list
     full_approve: bool = False
+    description:  str  = ""
+    credits:      str  = ""
 
 
 @app.post("/api/projects/{channel}/{project_id}/script/approve")
@@ -277,7 +279,9 @@ async def approve_script(channel: str, project_id: str,
         final_script=req.final_script,
         tags=req.tags,
         shot_list=shot_list,
-        full_approve=req.full_approve
+        full_approve=req.full_approve,
+        description=req.description,
+        credits=req.credits
     ))
     return JSONResponse({"status": "approved"})
 
